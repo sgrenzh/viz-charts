@@ -23,7 +23,7 @@ const sum = (values: number[]) => values.reduce((total, value) => total + value,
 const usd = (value: number, digits: number) => "$" + value.toFixed(digits);
 
 export const presets: { config: ChartConfig; span: number }[] = [
-  { span: 4, config: { version: 1, type: "column", title: "Accounts created", headline: sum(created), period: "30 days", height: 200, labels: labels(30), series: [{ name: "Accounts", values: created }], barStyle: "cap", yAxis: { show: false }, grid: false } },
+  { span: 4, config: { version: 1, type: "column", title: "Accounts created", headline: sum(created), period: "30 days", height: 200, labels: labels(30), series: [{ name: "Accounts", values: created }], barStyle: "cap", barRadius: 2, yAxis: { show: false }, grid: false } },
   { span: 4, config: { version: 1, type: "line", title: "Market cap", headline: usd(market[111] / 10, 3) + "B", period: "1 month", height: 200, labels: labels(112, 4), series: [{ name: "Market cap", values: market.map(x => x * 1e8) }], yAxis: { format: "compact" }, marker: true } },
   { span: 4, config: { version: 1, type: "column", title: "Amount of sales", headline: sum(sales), period: "Jan – Jun", height: 200, labels: months, series: [{ name: "Sales", values: sales }], barRadius: 8, yAxis: { show: false } } },
   { span: 4, config: { version: 1, type: "column", title: "Active accounts", headline: active[82].toLocaleString("en"), period: "1 month", height: 232, labels: labels(83, 3), series: [{ name: "Active accounts", values: active }], yAxis: { format: "compact" }, barWidth: 4 } },

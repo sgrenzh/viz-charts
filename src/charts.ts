@@ -65,14 +65,20 @@ interface StripConfig extends BaseConfig {
 type Attrs = Record<string, string | number>;
 type Shape = { tag: "line" | "rect" | "path" | "circle" | "text"; attrs: Attrs; text?: string };
 interface Mark { x: number; y: number; label: string; values: [string, string][] }
-interface Layout { width: number; height: number; shapes: Shape[]; marks: Mark[] }
-export interface ChartOptions { formatValue?: (value: number, axis?: AxisConfig) => string }
+interface Layout { width: number; height: number; shapes: Shape[]; marks: Mark[]; clip?: Attrs }
+export interface ChartOptions {
+  formatValue?: (value: number, axis?: AxisConfig) => string;
+  controls?: HTMLElement;
+}
+
+let nextChartId = 0;
 
 const color = "var(--viz-accent)";
 const muted = "var(--viz-muted)";
 const rules = "var(--viz-grid)";
 const dayMs = 86_400_000;
-const heatColors = ["#E1E8FA", "#C2D2F5", "#A4BBF0", "#86A4EB", "#678EE6", color];
+const tint = (strength: number) => `color-mix(in srgb, ${color} ${strength}%, var(--viz-surface))`;
+const heatColors = [16, 33, 50, 66, 83, 100].map(tint);
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string) {
   const node = document.createElement(tag);
@@ -147,7 +153,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
   if (showX && config.xAxis?.label) shapes.push(label((left + right) / 2, height - 1, config.xAxis.label, "middle"));
   if (showY && config.yAxis?.label) shapes.push(label(right + 8, top, config.yAxis.label));
 
-  const getColor = (series: Series, i: number) => series.color ?? (i ? "#A4BBF0" : color);
+  const getColor = (series: Series, i: number) => series.color ?? (i ? tint(50) : color);
   if (column) {
     const start = indexes.map(() => ({ pos: 0, neg: 0 }));
     main.forEach((series, s) => {
@@ -164,7 +170,14 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
         const x = center(i) - w * groups / 2 + (stack ? 0 : s * w);
         const fill = getColor(series, s);
         shapes.push(shape("rect", { x, y: barY, width: w, height: barHeight, rx: config.barRadius ?? 0, fill, opacity: config.barStyle === "cap" ? 0.12 : 1 }));
-        if (config.barStyle === "cap" && barHeight) shapes.push(shape("rect", { x, y: Math.min(endY, y(base) - 1), width: w, height: 1, fill }));
+        if (config.barStyle === "cap" && barHeight) {
+          const cap = Math.min(2, barHeight);
+          const r = Math.min(cap, w / 2);
+          const edge = v >= 0 ? barY : barY + barHeight;
+          const inside = edge + (v >= 0 ? cap : -cap);
+          const d = `M${x},${inside} Q${x},${edge} ${x + r},${edge} H${x + w - r} Q${x + w},${edge} ${x + w},${inside} Z`;
+          shapes.push(shape("path", { d, fill }));
+        }
       });
     });
   } else {
@@ -241,12 +254,12 @@ function strip(config: StripConfig, width: number, formatValue: typeof format): 
   config.items.forEach((item, i) => {
     const share = total ? Math.max(0, item.value) / total : 0;
     const w = chartWidth * share;
-    const fill = item.color ?? (i === config.selected ? color : "#C2D2F5");
+    const fill = item.color ?? (i === config.selected ? color : tint(33));
     if (w > 0) shapes.push(shape("rect", { x, y: 0, width: w, height, fill, stroke: "var(--viz-surface)" }));
     marks.push({ label: item.label, x: x + w / 2, y: height / 2, values: [[item.label, formatValue(item.value)], ["Share", formatValue(share, { format: "percent", digits: 1 })]] });
     x += w;
   });
-  return { width, height, shapes, marks };
+  return { width, height, shapes, marks, clip: { x: 24, y: 0, width: chartWidth, height, rx: 8 } };
 }
 
 export function chartLayout(config: ChartConfig, width: number, options: ChartOptions = {}): Layout {
@@ -267,7 +280,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   const chartBody = element("div", "viz-body");
   const scroller = element("div", "viz-plot");
   const tooltip = element("div", "viz-tooltip");
-  const table = element("details", "viz-data");
+  const clipId = "viz-strip-clip-" + ++nextChartId;
   const svg = svgElement("svg", { role: "img" });
   tooltip.hidden = true;
   tooltip.setAttribute("role", "status");
@@ -275,13 +288,13 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   scroller.setAttribute("role", "group");
   scroller.setAttribute("aria-label", "Plot. Use arrow keys to explore the values.");
   scroller.append(svg);
-  card.append(header, chartBody, tooltip, table);
+  card.append(header, chartBody, tooltip);
   chartBody.append(scroller);
   host.replaceChildren(card);
 
   function display(index: number) {
     active = index;
-    const mark = layout.marks[index];
+    const mark = layout?.marks[index];
     tooltip.hidden = !mark;
     if (!mark) return;
     const title = element("strong");
@@ -309,35 +322,22 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     svg.setAttribute("width", String(layout.width));
     svg.setAttribute("height", String(layout.height));
     svg.setAttribute("aria-label", config.title);
-    svg.replaceChildren(...layout.shapes.map(({ tag, attrs, text }) => {
+    const marks = layout.shapes.map(({ tag, attrs, text }) => {
       const node = svgElement(tag, attrs);
       if (text !== undefined) node.textContent = text;
       return node;
-    }));
-    display(-1);
-    if (table.open) drawTable();
-  }
-  function drawTable() {
-    const grid = element("table");
-    const head = grid.createTHead().insertRow();
-    ["Label", "Series", "Value"].forEach(value => {
-      const th = element("th");
-      th.scope = "col";
-      th.textContent = value;
-      head.append(th);
     });
-    const body = grid.createTBody();
-    layout.marks.forEach(mark => mark.values.forEach(([series, value]) => {
-      const row = body.insertRow();
-      [mark.label, series, value].forEach(value => { row.insertCell().textContent = value; });
-    }));
-    table.querySelector("table")?.remove();
-    table.append(grid);
+    if (layout.clip) {
+      const clip = svgElement("clipPath", { id: clipId });
+      clip.append(svgElement("rect", layout.clip));
+      const group = svgElement("g", { "clip-path": `url(#${clipId})` });
+      group.append(...marks);
+      svg.replaceChildren(clip, group);
+    } else {
+      svg.replaceChildren(...marks);
+    }
+    display(-1);
   }
-  const summary = element("summary");
-  summary.textContent = "View data";
-  table.append(summary);
-  table.addEventListener("toggle", () => { if (table.open && layout) drawTable(); });
 
   function render() {
     const themeKeys = { accent: "accent", background: "surface", ink: "ink", muted: "muted", grid: "grid", fontFamily: "font" } as const;
@@ -350,7 +350,9 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const title = element("h2");
     title.textContent = config.title;
     header.replaceChildren(title);
-    if (config.period) {
+    if (options.controls) {
+      header.append(options.controls);
+    } else if (config.period) {
       const period = element("span", "viz-period");
       period.textContent = config.period;
       header.append(period);
@@ -381,7 +383,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const legend = element("div", "viz-series");
       config.series.forEach((series, i) => {
         const item = element("span");
-        item.style.setProperty("--series-color", series.color ?? (i ? "#A4BBF0" : color));
+        item.style.setProperty("--series-color", series.color ?? (i ? tint(50) : color));
         item.textContent = series.name;
         legend.append(item);
       });
@@ -422,6 +424,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   observer.observe(scroller);
   return {
     update(next: ChartConfig) { config = next; render(); },
+    getData() {
+      const data = layout ?? chartLayout(config, 320, options);
+      return data.marks.flatMap(mark => mark.values.map(([series, value]) => ({ label: mark.label, series, value })));
+    },
     destroy() { observer.disconnect(); card.remove(); },
   };
 }

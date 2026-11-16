@@ -2,7 +2,7 @@
 
 [Open the live preview](https://sgrenzh.github.io/viz-charts/)
 
-Viz Charts is a framework-independent TypeScript library for responsive SVG charts. It includes columns and stacked columns, lines, combined line and column charts, calendar heatmaps, and proportional strips. Configure data, axes, and styling in code, or try the controls in the live gallery and copy the resulting JSON. The gallery uses synthetic data.
+Viz Charts is a framework-independent TypeScript library for responsive SVG charts. It includes columns and stacked columns, lines, combined line and column charts, calendar heatmaps, and proportional strips. Configure data, axes, and styling in code, or use the chart settings in the live gallery and copy the resulting JSON. The gallery uses synthetic data.
 
 ## Run locally
 
@@ -15,7 +15,7 @@ npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite. Select **Customize** to edit a chart or copy its configuration.
+Open the local URL printed by Vite. Select **Customize** to change the gallery theme or accent. Use the gear on a chart to edit its settings and copy its configuration, or the table icon to inspect the plotted data.
 
 ## Use in a web app
 

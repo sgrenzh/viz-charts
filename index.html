@@ -12,23 +12,39 @@
     <link rel="stylesheet" href="./src/gallery.css">
   </head>
   <body>
-    <header class="masthead"><h1>Viz Charts</h1><button id="edit" aria-expanded="false" aria-controls="editor">Customize</button></header>
+    <header class="masthead"><h1>Viz Charts</h1><button type="button" id="edit" aria-haspopup="dialog">Customize</button></header>
     <main>
       <div id="gallery" class="gallery"></div>
-      <aside id="editor" hidden>
-        <h2>Customize chart</h2>
-        <label>Chart <select id="presets"></select></label>
-        <label>Title <input id="title" type="text"></label>
-        <label>Series color <input id="accent" type="color"></label>
-        <label>Font family <input id="font" type="text" placeholder="Noto Sans"></label>
-        <label>Horizontal axis <input id="axis-x" type="checkbox"></label>
-        <label>Vertical axis <input id="axis-y" type="checkbox"></label>
-        <label>Show gridlines <input id="grid" type="checkbox"></label>
-        <label>Configuration <textarea id="config" spellcheck="false" rows="14"></textarea></label>
-        <div class="actions"><button id="apply">Apply JSON</button><button id="copy">Copy JSON</button><button id="reset">Reset</button></div>
-        <p id="status" role="status"></p>
-      </aside>
     </main>
+    <dialog id="appearance" aria-labelledby="appearance-heading">
+      <header class="dialog-heading"><h2 id="appearance-heading">Gallery appearance</h2><button class="icon-button" type="button" data-close aria-label="Close appearance settings">✕</button></header>
+      <div class="dialog-content">
+        <label>Theme <select id="page-theme"><option value="light">Light</option><option value="dark">Dark</option><option value="system">System</option></select></label>
+        <label>Accent color <input id="page-accent" type="color" value="#4977e1"></label>
+      </div>
+    </dialog>
+    <dialog id="editor" aria-labelledby="editor-heading">
+      <header class="dialog-heading"><h2 id="editor-heading">Chart settings</h2><button class="icon-button" type="button" data-close aria-label="Close chart settings">✕</button></header>
+      <div class="dialog-content">
+        <p id="chart-name"></p>
+        <label>Title <input id="title" type="text"></label>
+        <label>Use gallery accent <input id="inherit-accent" type="checkbox"></label>
+        <label>Chart accent <input id="accent" type="color"></label>
+        <label>Font family <input id="font" type="text" placeholder="Noto Sans"></label>
+        <fieldset id="axes"><legend>Plot options</legend>
+          <label>Horizontal axis <input id="axis-x" type="checkbox"></label>
+          <label>Vertical axis <input id="axis-y" type="checkbox"></label>
+          <label>Gridlines <input id="grid" type="checkbox"></label>
+        </fieldset>
+        <label>Configuration <textarea id="config" spellcheck="false" rows="9"></textarea></label>
+        <div class="actions"><button type="button" id="apply">Apply JSON</button><button type="button" id="copy">Copy JSON</button><button type="button" id="reset">Reset</button></div>
+        <p id="status" role="status"></p>
+      </div>
+    </dialog>
+    <dialog id="data-dialog" aria-labelledby="data-heading">
+      <header class="dialog-heading"><h2 id="data-heading">Chart data</h2><button class="icon-button" type="button" data-close aria-label="Close chart data">✕</button></header>
+      <div class="dialog-content"><p id="data-name"></p><div id="data-table"></div></div>
+    </dialog>
     <script type="module" src="./src/gallery.ts"></script>
   </body>
 </html>
