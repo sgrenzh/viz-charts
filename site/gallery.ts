@@ -288,8 +288,12 @@ const filters = Object.entries({ all: "All", ...familyLabels }).map(([family, la
   pill.textContent = label;
   pill.setAttribute("aria-controls", gallery.id);
   pill.setAttribute("aria-pressed", String(family === activeFamily));
+  pill.addEventListener("focus", () => {
+    if (pill.matches(":focus-visible")) pill.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
   pill.addEventListener("click", () => {
-    activeFamily = family === activeFamily ? "all" : family;
+    if (family === activeFamily) return;
+    activeFamily = family;
     for (const filter of filters) filter.pill.setAttribute("aria-pressed", String(filter.family === activeFamily));
     charts.forEach((chart, i) => { chart.card.hidden = activeFamily !== "all" && chartFamily(configs[i]) !== activeFamily; });
   });
