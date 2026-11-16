@@ -31,10 +31,14 @@
         <label>Use gallery accent <input id="inherit-accent" type="checkbox"></label>
         <label>Chart accent <input id="accent" type="color"></label>
         <label>Font family <input id="font" type="text" placeholder="Noto Sans"></label>
+        <label id="legend-position-field" hidden>List position
+          <select id="legend-position"><option value="below">Below</option><option value="right" selected>Right</option><option value="left">Left</option></select>
+        </label>
         <fieldset id="axes"><legend>Plot options</legend>
           <label>Horizontal axis <input id="axis-x" type="checkbox"></label>
           <label>Vertical axis <input id="axis-y" type="checkbox"></label>
           <label>Gridlines <input id="grid" type="checkbox"></label>
+          <label id="show-volume-field" hidden>Show volume <input id="show-volume" type="checkbox"></label>
         </fieldset>
         <label>Configuration <textarea id="config" spellcheck="false" rows="9"></textarea></label>
         <div class="actions"><button type="button" id="apply">Apply JSON</button><button type="button" id="copy">Copy JSON</button><button type="button" id="reset">Reset</button></div>

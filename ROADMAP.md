@@ -12,7 +12,7 @@ Build a responsive chart package for designers and developers, with a typed code
 | Line | Market cap. |
 | Line + aligned columns | Price and volume, with a shared time axis and independent value scales. |
 | Calendar heatmap | Transactions, with a date-driven calendar grid and configurable color thresholds. |
-| Proportional strip | Contract types and Contract interfaces as presets of the same chart family. |
+| Proportional strip | Contract types with the value list below, to the right, or to the left. |
 | Interval timeline | Phases and milestones across lanes. Include in the first release if the SVG or Figma frame becomes available. The overview PNG is the current reference. |
 
 The directional transfer diagram is deferred. Native mobile and agent-chat integrations are future work. The web package and gallery support mobile browsers from the first release.

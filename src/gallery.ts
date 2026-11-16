@@ -1,4 +1,4 @@
-import { mountChart, type ChartConfig } from "./charts.js";
+import { mountChart, type ChartConfig, type LegendPosition } from "./charts.js";
 import { presets } from "./presets.js";
 
 const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -15,6 +15,8 @@ const font = byId<HTMLInputElement>("font");
 const xAxis = byId<HTMLInputElement>("axis-x");
 const yAxis = byId<HTMLInputElement>("axis-y");
 const grid = byId<HTMLInputElement>("grid");
+const legendPosition = byId<HTMLSelectElement>("legend-position");
+const showVolume = byId<HTMLInputElement>("show-volume");
 const source = byId<HTMLTextAreaElement>("config");
 const status = byId("status");
 
@@ -28,9 +30,9 @@ const viewsByPreset: View[][] = [
   [{ label: "One month", count: 1 }, { label: "Three months", count: 3 }, { label: "Six months" }],
   monthlyRanges, calendarRanges, monthlyRanges, [],
   [{ label: "24 hours", count: 1 }, { label: "One week" }],
-  [{ label: "24 hours", count: 1 }, { label: "One week" }], [],
+  [{ label: "24 hours", count: 1 }, { label: "One week" }],
 ];
-const samplesPerDay = [1, 4, 1, 3, 1, 8, 1, 24, 6, 1];
+const samplesPerDay = [1, 4, 1, 3, 1, 8, 1, 24, 6];
 const stripViews: View[] = [{ label: "By address count" }, { label: "By category" }];
 const configs = presets.map(({ config }) => structuredClone(config));
 const selectedViews = presets.map(({ config }, index) => config.type === "strip" ? 0 : viewsByPreset[index].length - 1);
@@ -214,6 +216,10 @@ function sync() {
   xAxis.checked = hasAxes && config.xAxis?.show !== false;
   yAxis.checked = hasAxes && config.yAxis?.show !== false;
   grid.checked = hasAxes && config.grid !== false;
+  byId("legend-position-field").hidden = config.type !== "strip";
+  legendPosition.value = config.type === "strip" ? config.legendPosition ?? "right" : "right";
+  byId("show-volume-field").hidden = config.type !== "line-column";
+  showVolume.checked = config.type === "line-column" && config.showVolume !== false;
   source.value = JSON.stringify(config, null, 2);
 }
 
@@ -281,6 +287,14 @@ for (const dialog of [appearance, editor, dataDialog]) {
   dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
 }
 [title, accent, inheritAccent, font, xAxis, yAxis, grid].forEach(control => control.addEventListener("change", applyControls));
+legendPosition.addEventListener("change", () => {
+  const config = configs[chosen];
+  if (config.type === "strip") update({ ...config, legendPosition: legendPosition.value as LegendPosition });
+});
+showVolume.addEventListener("change", () => {
+  const config = configs[chosen];
+  if (config.type === "line-column") update({ ...config, showVolume: showVolume.checked });
+});
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -320,6 +334,9 @@ function readConfig(text: string): ChartConfig {
   } else if (parsed.type === "strip") {
     if (!Array.isArray(parsed.items) || !parsed.items.every(item => isRecord(item) && typeof item.label === "string"
       && finite(item.value) && item.value >= 0 && optionalText(item.color))) throw new Error("Strip segments need labels and nonnegative values.");
+    if (parsed.legendPosition !== undefined && parsed.legendPosition !== "below" && parsed.legendPosition !== "right" && parsed.legendPosition !== "left") {
+      throw new Error("Choose below, right, or left for the list position.");
+    }
   } else if (parsed.type === "column" || parsed.type === "line" || parsed.type === "line-column") {
     const labels = parsed.labels;
     if (!Array.isArray(labels) || !labels.every(x => typeof x === "string") || !Array.isArray(parsed.series)
@@ -328,6 +345,9 @@ function readConfig(text: string): ChartConfig {
       || (parsed.type === "line-column" && parsed.series.length !== 2)) throw new Error("Provide labels and matching series values. Combo charts need two series.");
     if (!validAxis(parsed.xAxis) || !validAxis(parsed.yAxis) || !within(parsed.barRadius, 0, 40) || !within(parsed.barWidth, 1, 160)) {
       throw new Error("Check the axis and bar settings.");
+    }
+    if (parsed.type === "line-column" && parsed.showVolume !== undefined && typeof parsed.showVolume !== "boolean") {
+      throw new Error("Show volume must be true or false.");
     }
   } else {
     throw new Error("Unknown chart type.");

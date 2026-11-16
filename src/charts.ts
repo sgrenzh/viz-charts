@@ -2,6 +2,7 @@ import { scaleBand, scaleLinear } from "d3-scale";
 import { line } from "d3-shape";
 
 export type ChartConfig = CartesianConfig | HeatmapConfig | StripConfig;
+export type LegendPosition = "below" | "right" | "left";
 export interface ChartTheme {
   accent?: string;
   background?: string;
@@ -44,6 +45,7 @@ interface CartesianConfig extends BaseConfig {
   barRadius?: number;
   barWidth?: number;
   marker?: boolean;
+  showVolume?: boolean;
 }
 interface HeatmapConfig extends BaseConfig {
   type: "heatmap";
@@ -60,6 +62,7 @@ interface StripConfig extends BaseConfig {
   items: { label: string; value: number; color?: string }[];
   selected?: number;
   legend?: boolean;
+  legendPosition?: LegendPosition;
 }
 
 type Attrs = Record<string, string | number>;
@@ -117,6 +120,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
   const top = 12;
   const bottom = height - (showX ? 32 : 12);
   const combo = config.type === "line-column";
+  const showVolume = combo && config.showVolume !== false;
   const column = config.type === "column";
   const main = combo ? config.series.slice(0, 1) : config.series;
   const indexes = config.labels.map((_, i) => String(i));
@@ -135,7 +139,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
   const high = values.reduce((a, b) => Math.max(a, b), column ? 0 : -Infinity);
   const min = config.yAxis?.min ?? (Number.isFinite(low) ? low : 0);
   const max = config.yAxis?.max ?? (Number.isFinite(high) ? Math.max(high, min + Number.EPSILON * Math.max(1, Math.abs(min)) * 2) : min + 1);
-  const lineBottom = combo ? bottom - 44 : bottom;
+  const lineBottom = showVolume ? bottom - 44 : bottom;
   const y = scaleLinear([min, max], [lineBottom, top]).clamp(true);
   if (config.yAxis?.min === undefined && config.yAxis?.max === undefined) y.nice(config.yAxis?.ticks ?? 4);
 
@@ -185,7 +189,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
       });
     });
   } else {
-    if (combo && config.series[1]) {
+    if (showVolume && config.series[1]) {
       const volume = config.series[1];
       const maxVolume = volume.values.reduce<number>((max, v) => Math.max(max, v ?? 0), 1);
       const volumeY = scaleLinear([0, maxVolume], [bottom, bottom - 36]).clamp(true);
@@ -203,11 +207,12 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
       if (config.marker && last >= 0) shapes.push(shape("circle", { cx: center(last), cy: y(plotted[last] ?? 0), r: 4, fill: getColor(series, i) }));
     });
   }
+  const visibleSeries = combo && !showVolume ? main : config.series;
   const marks = config.labels.map((name, i) => ({
     label: name,
     x: center(i),
     y: y(main[0]?.values[i] ?? min),
-    values: config.series.map((s, j): [string, string] =>
+    values: visibleSeries.map((s, j): [string, string] =>
       [s.name, s.values[i] == null ? "—" : formatValue(s.values[i]!, combo && j === 1 ? undefined : config.yAxis)]),
   }));
   return { width, height, shapes, marks };
@@ -367,8 +372,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       header.append(period);
     }
     chartBody.querySelector(".viz-legend")?.remove();
+    delete chartBody.dataset.legendPosition;
     header.querySelector(".viz-series")?.remove();
     if (config.type === "strip" && config.legend !== false) {
+      chartBody.dataset.legendPosition = config.legendPosition ?? "right";
       const legend = element("div", "viz-legend");
       config.items.forEach((item, i) => {
         const button = element("button");

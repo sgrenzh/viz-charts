@@ -44,7 +44,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   padding: 8px 12px;
   color: inherit;
 }
-.chart-toolbar { --control-size: 40px; display: flex; align-items: center; gap: 4px; }
+.chart-toolbar {
+  --control-padding: 12px;
+  --control-content: 18px;
+  --control-size: calc(var(--control-content) + 2 * var(--control-padding) + 2px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .icon-button {
   display: inline-flex;
   align-items: center;
@@ -55,8 +62,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   padding: 0;
 }
 .chart-toolbar svg {
-  width: 16px;
-  height: 16px;
+  width: var(--control-content);
+  height: var(--control-content);
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
@@ -64,17 +71,24 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   stroke-linejoin: round;
   flex: none;
 }
-.chart-range { position: relative; }
-.range-trigger { width: auto; min-width: 108px; justify-content: space-between; gap: 4px; padding-inline: 8px; white-space: nowrap; }
-.chart-toolbar button { font-size: 11px; }
+.chart-toolbar .icon-button { width: var(--control-size); height: var(--control-size); padding: var(--control-padding); }
+.chart-range { position: relative; display: grid; min-width: 0; }
+.chart-toolbar .range-trigger { width: auto; min-width: 108px; justify-content: space-between; gap: 4px; white-space: nowrap; }
+.range-trigger span { overflow: hidden; text-overflow: ellipsis; }
+.chart-toolbar button { font-size: 11px; line-height: var(--control-content); }
+@container (max-width: 320px) {
+  .chart-toolbar { --control-padding: 8px; --control-content: 16px; max-inline-size: 72cqi; }
+  .chart-toolbar .range-trigger { min-width: 0; }
+}
 .range-trigger:hover, .icon-button:hover { background: var(--viz-grid, var(--viz-page-grid)); }
 .range-menu {
-  --menu-row-size: 48px;
+  --menu-row-size: calc(var(--control-size) + 4px);
   position: absolute;
   z-index: 2;
   top: calc((var(--control-size) - var(--menu-row-size)) / 2 - var(--active-row) * var(--menu-row-size) - 1px);
   left: 0;
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   background: var(--viz-surface);
   border: 1px solid var(--control-border);
   border-radius: 8px;
@@ -88,7 +102,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   gap: 4px;
   height: var(--menu-row-size);
   width: 100%;
-  padding: 0 8px;
+  padding: var(--control-padding);
   border: 0;
   border-top: 1px solid transparent;
   border-bottom: 1px solid var(--viz-grid);
