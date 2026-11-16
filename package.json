@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "files": [
-    "lib",
+    "lib/charts.js",
+    "lib/charts.d.ts",
     "src/charts.css"
   ],
   "main": "./lib/charts.js",
@@ -17,8 +18,8 @@
   },
   "scripts": {
     "dev": "vite",
-    "check": "tsc --noEmit",
-    "build": "tsc && vite build"
+    "check": "tsc -p tsconfig.site.json",
+    "build": "tsc && npm run check && vite build"
   },
   "dependencies": {
     "d3-scale": "^4.0.2",

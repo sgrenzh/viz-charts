@@ -1,16 +1,21 @@
-import { mountChart, type ChartConfig, type LegendPosition } from "./charts.js";
+import { mountChart, type ChartConfig, type LegendPosition } from "../src/charts.js";
 import { presets } from "./presets.js";
 
 const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const gallery = byId("gallery");
-const appearance = byId<HTMLDialogElement>("appearance");
+const preview = byId<HTMLDialogElement>("preview");
+const previewHost = byId("preview-chart");
+const previewActions = byId("preview-controls");
+const previewRange = byId("preview-range");
+const exampleField = byId("example-field");
+const example = byId<HTMLSelectElement>("preview-example");
 const editor = byId<HTMLDialogElement>("editor");
 const dataDialog = byId<HTMLDialogElement>("data-dialog");
 const title = byId<HTMLInputElement>("title");
 const accent = byId<HTMLInputElement>("accent");
 const inheritAccent = byId<HTMLInputElement>("inherit-accent");
 const pagePalette = byId<HTMLSelectElement>("page-palette");
-const pageTheme = byId<HTMLSelectElement>("page-theme");
+const themeOptions = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="page-theme"]'));
 const font = byId<HTMLInputElement>("font");
 const xAxis = byId<HTMLInputElement>("axis-x");
 const yAxis = byId<HTMLInputElement>("axis-y");
@@ -19,6 +24,15 @@ const legendPosition = byId<HTMLSelectElement>("legend-position");
 const showVolume = byId<HTMLInputElement>("show-volume");
 const source = byId<HTMLTextAreaElement>("config");
 const status = byId("status");
+const familyLabels = {
+  column: "Column",
+  stacked: "Stacked column",
+  line: "Line",
+  "line-column": "Line + column",
+  heatmap: "Calendar heatmap",
+  strip: "Proportional strip",
+};
+const presetFamilies = presets.map(({ config }) => config.type === "column" && config.stacked ? "stacked" : config.type);
 
 interface View { label: string; count?: number }
 const dayMs = 86_400_000;
@@ -42,6 +56,7 @@ let closeCurrentMenu: (() => void) | undefined;
 const icons = {
   chevron: '<path d="m6 9 6 6 6-6"/>',
   check: '<path d="m5 12 4 4L19 6"/>',
+  close: '<path d="m6 6 12 12M18 6 6 18"/>',
   settings: '<path d="M10 3h4l.6 2.6 2 .9 2.3-.9 2 3.4-1.8 1.7v2.6l1.8 1.7-2 3.4-2.3-.9-2 .9L14 21h-4l-.6-2.6-2-.9-2.3.9-2-3.4 1.8-1.7v-2.6L3.1 9l2-3.4 2.3.9 2-.9z"/><circle cx="12" cy="12" r="3"/>',
   data: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M10 9v11"/>',
 };
@@ -61,6 +76,8 @@ function button(name: string, iconName: keyof typeof icons) {
   control.append(icon(iconName));
   return control;
 }
+preview.querySelectorAll(".select-pill").forEach(pill => pill.append(icon("chevron")));
+
 function viewsFor(index: number) {
   const config = configs[index];
   if (config.type === "strip") return stripViews;
@@ -115,7 +132,7 @@ function createToolbar(index: number) {
   settings.setAttribute("aria-haspopup", "dialog");
   data.setAttribute("aria-haspopup", "dialog");
   range.append(trigger, menu);
-  toolbar.append(range, settings, data);
+  toolbar.append(settings, data);
 
   function refresh() {
     const config = configs[index];
@@ -156,6 +173,7 @@ function createToolbar(index: number) {
     trigger.setAttribute("aria-expanded", "true");
     closeCurrentMenu = close;
     (menu.children[active] as HTMLElement).focus({ preventScroll: true });
+    menu.scrollIntoView({ block: "nearest" });
   }
   trigger.addEventListener("click", () => { if (menu.hidden) open(); else close(); });
   trigger.addEventListener("keydown", event => {
@@ -185,20 +203,145 @@ function createToolbar(index: number) {
   });
   data.addEventListener("click", () => showData(index));
   refresh();
-  return { toolbar, refresh };
+  return { toolbar, range, refresh };
 }
 
 const charts = presets.map(({ span }, index) => {
+  const card = document.createElement("div");
+  card.className = "gallery-tile";
+  card.style.setProperty("--span", String(span));
   const host = document.createElement("div");
-  host.style.setProperty("--span", String(span));
-  gallery.append(host);
-  const { toolbar, refresh } = createToolbar(index);
-  return { refresh, ...mountChart(host, viewConfig(index), { controls: toolbar }) };
+  host.inert = true;
+  const opener = button(`Preview ${configs[index].title}`, "chevron");
+  opener.className = "tile-opener";
+  opener.setAttribute("aria-haspopup", "dialog");
+  opener.addEventListener("click", () => showPreview(index));
+  card.append(host, opener);
+  gallery.append(card);
+  const { toolbar, range, refresh } = createToolbar(index);
+  return { toolbar, range, refresh, opener, ...mountChart(host, previewConfig(index)) };
+});
+
+for (const [family, label] of Object.entries(familyLabels)) {
+  const first = presetFamilies.findIndex(value => value === family);
+  if (first < 0) continue;
+  const pill = document.createElement("button");
+  pill.type = "button";
+  pill.textContent = label;
+  pill.setAttribute("aria-haspopup", "dialog");
+  pill.addEventListener("click", () => showPreview(first));
+  byId("chart-types").append(pill);
+}
+
+let previewIndex = -1;
+let detail: ReturnType<typeof mountChart> | undefined;
+let detailPlot: HTMLElement | null = null;
+let detailWidth = 0;
+let detailHeight: number | undefined;
+const detailResize = new ResizeObserver(resizeDetail);
+
+function previewConfig(index: number) {
+  return { ...viewConfig(index), period: undefined };
+}
+
+function syncPreview(index: number) {
+  byId("preview-heading").textContent = configs[index].title;
+  byId("preview-range-label").textContent = configs[index].type === "strip" ? "Sort by" : "Date range";
+  example.selectedOptions[0].textContent = configs[index].title;
+}
+
+function detailConfig(index: number): ChartConfig {
+  const config = previewConfig(index);
+  const plotWidth = detailPlot?.clientWidth ?? 0;
+  const card = detailPlot?.closest<HTMLElement>(".viz-card");
+  const heading = card?.querySelector<HTMLElement>(".viz-heading");
+  if (!plotWidth || !card || !heading || config.type === "heatmap") return config;
+  const [referenceWidth, referenceHeight] = presets[index].sourceSize;
+  const cardStyle = getComputedStyle(card);
+  const headingStyle = getComputedStyle(heading);
+  const nonPlotHeight = heading.offsetHeight + [headingStyle.marginBottom, cardStyle.paddingTop, cardStyle.paddingBottom, cardStyle.borderTopWidth, cardStyle.borderBottomWidth]
+    .reduce((height, value) => height + (parseFloat(value) || 0), 0);
+  const desiredHeight = card.offsetWidth * referenceHeight / referenceWidth;
+  const minimumHeight = config.type === "line-column" && config.showVolume !== false ? 128 : 96;
+  const height = Math.max(minimumHeight, Math.round(desiredHeight - nonPlotHeight));
+  const original = presets[index].config;
+  if (config.type === "column" && config.labels.length === 1 && config.barWidth === undefined && "series" in original) {
+    const barWidth = Math.min(64, Math.max(8, Math.round(plotWidth / original.labels.length)));
+    return { ...config, height, barWidth };
+  }
+  return { ...config, height };
+}
+
+function resizeDetail() {
+  const width = detailPlot?.clientWidth ?? 0;
+  if (!detail || !width) return;
+  const config = detailConfig(previewIndex);
+  if (width === detailWidth && config.height === detailHeight) return;
+  detailWidth = width;
+  detailHeight = config.height;
+  detail.update(config);
+}
+
+function clearDetail() {
+  detailResize.disconnect();
+  detail?.destroy();
+  detail = undefined;
+  detailPlot = null;
+  detailWidth = 0;
+  detailHeight = undefined;
+}
+
+function showPreview(index: number) {
+  closeCurrentMenu?.();
+  clearDetail();
+  previewIndex = index;
+  const family = presetFamilies[index];
+  const examples = configs.flatMap((config, i) => {
+    if (presetFamilies[i] !== family) return [];
+    const option = document.createElement("option");
+    option.value = String(i);
+    option.textContent = config.title;
+    return [option];
+  });
+  example.replaceChildren(...examples);
+  example.value = String(index);
+  exampleField.hidden = examples.length < 2;
+  syncPreview(index);
+  previewRange.replaceChildren(charts[index].range);
+  previewActions.replaceChildren(charts[index].toolbar);
+  previewHost.style.setProperty("--preview-chart-width", `${Math.round(presets[index].sourceSize[0] * 0.7)}px`);
+  const opening = !preview.open;
+  if (opening) preview.showModal();
+  detail = mountChart(previewHost, previewConfig(index));
+  detailPlot = previewHost.querySelector<HTMLElement>(".viz-plot");
+  if (detailPlot) detailResize.observe(detailPlot);
+  const heading = previewHost.querySelector<HTMLElement>(".viz-heading");
+  if (heading) detailResize.observe(heading);
+  resizeDetail();
+  if (opening) preview.scrollTop = 0;
+}
+
+example.addEventListener("change", () => showPreview(Number(example.value)));
+preview.addEventListener("close", () => {
+  if (preview.open) return;
+  closeCurrentMenu?.();
+  clearDetail();
+  previewIndex = -1;
 });
 
 function drawChart(index: number) {
-  charts[index].refresh();
-  charts[index].update(viewConfig(index));
+  const chart = charts[index];
+  chart.refresh();
+  chart.opener.setAttribute("aria-label", `Preview ${configs[index].title}`);
+  chart.opener.title = `Preview ${configs[index].title}`;
+  const config = previewConfig(index);
+  chart.update(config);
+  if (previewIndex === index && detail) {
+    const next = detailConfig(index);
+    detailHeight = next.height;
+    detail.update(next);
+    syncPreview(index);
+  }
 }
 
 function sync() {
@@ -208,7 +351,7 @@ function sync() {
   const ownAccent = config.theme?.accent;
   inheritAccent.checked = ownAccent === undefined;
   accent.disabled = inheritAccent.checked;
-  const galleryAccent = getComputedStyle(document.documentElement).getPropertyValue("--viz-page-accent").trim();
+  const galleryAccent = getComputedStyle(gallery).getPropertyValue("--viz-page-accent").trim();
   accent.value = /^#[0-9a-f]{6}$/i.test(ownAccent ?? "") ? ownAccent! : galleryAccent;
   font.value = config.theme?.fontFamily ?? "";
   const hasAxes = "series" in config;
@@ -266,24 +409,27 @@ function showData(index: number) {
 
 const themeQuery = matchMedia("(prefers-color-scheme: dark)");
 function applyAppearance() {
-  const dark = pageTheme.value === "dark" || (pageTheme.value === "system" && themeQuery.matches);
+  const theme = themeOptions.find(option => option.checked)?.value ?? "system";
+  const dark = theme === "dark" || (theme === "system" && themeQuery.matches);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   document.documentElement.dataset.palette = pagePalette.value;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#18171c" : "#f2f2f2");
-  try { localStorage.setItem("viz-gallery-appearance", JSON.stringify({ theme: pageTheme.value, palette: pagePalette.value })); } catch { /* Storage may be disabled. */ }
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0d0d0d" : "#f2f2f2");
+  try { localStorage.setItem("viz-gallery-appearance", JSON.stringify({ theme, palette: pagePalette.value })); } catch { /* Storage may be disabled. */ }
 }
 try {
   const saved = JSON.parse(localStorage.getItem("viz-gallery-appearance") ?? "{}");
-  if (["light", "dark", "system"].includes(saved?.theme)) pageTheme.value = saved.theme;
+  const savedTheme = themeOptions.find(option => option.value === saved?.theme);
+  if (savedTheme) savedTheme.checked = true;
   if (Array.from(pagePalette.options).some(option => option.value === saved?.palette)) pagePalette.value = saved.palette;
 } catch { /* Use the defaults when settings are unavailable. */ }
 applyAppearance();
 themeQuery.addEventListener("change", applyAppearance);
-pageTheme.addEventListener("change", applyAppearance);
+themeOptions.forEach(option => option.addEventListener("change", applyAppearance));
 pagePalette.addEventListener("change", applyAppearance);
-byId("edit").addEventListener("click", () => { closeCurrentMenu?.(); appearance.showModal(); });
-for (const dialog of [appearance, editor, dataDialog]) {
-  dialog.querySelector("[data-close]")?.addEventListener("click", () => dialog.close());
+for (const dialog of [preview, editor, dataDialog]) {
+  const close = dialog.querySelector("[data-close]");
+  if (!close?.hasChildNodes()) close?.append(icon("close"));
+  close?.addEventListener("click", () => dialog.close());
   dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
 }
 [title, accent, inheritAccent, font, xAxis, yAxis, grid].forEach(control => control.addEventListener("change", applyControls));

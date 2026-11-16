@@ -9,19 +9,33 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./src/charts.css">
-    <link rel="stylesheet" href="./src/gallery.css">
+    <link rel="stylesheet" href="./site/gallery.css">
   </head>
   <body>
-    <header class="masthead"><h1>Viz Charts</h1><button type="button" id="edit" aria-haspopup="dialog">Customize</button></header>
-    <main>
-      <div id="gallery" class="gallery"></div>
+    <main class="gallery-page" aria-label="Viz Charts">
+      <nav id="chart-types" class="chart-types" aria-label="Chart types"></nav>
+      <div id="gallery" class="gallery chart-theme"></div>
     </main>
-    <dialog id="appearance" aria-labelledby="appearance-heading">
-      <header class="dialog-heading"><h2 id="appearance-heading">Gallery appearance</h2><button class="icon-button" type="button" data-close aria-label="Close appearance settings">✕</button></header>
-      <div class="dialog-content">
-        <label>Theme <select id="page-theme"><option value="light">Light</option><option value="dark">Dark</option><option value="system">System</option></select></label>
-        <label>Color scheme <select id="page-palette"><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></label>
-      </div>
+    <dialog id="preview" class="preview-dialog" aria-labelledby="preview-heading">
+      <div class="preview-stage chart-theme" id="preview-chart"></div>
+      <section class="preview-options">
+        <header class="preview-heading">
+          <h2 id="preview-heading"></h2>
+          <button class="icon-button close-button" type="button" data-close aria-label="Close chart preview"></button>
+        </header>
+        <label class="option-row" id="example-field" hidden>Example <span class="select-pill"><select id="preview-example"></select></span></label>
+        <fieldset class="theme-row" aria-label="Theme">
+          <span aria-hidden="true">Theme</span>
+          <div class="segmented">
+            <label><input type="radio" name="page-theme" value="light"><span>Light</span></label>
+            <label><input type="radio" name="page-theme" value="dark"><span>Dark</span></label>
+            <label><input type="radio" name="page-theme" value="system" checked><span>System</span></label>
+          </div>
+        </fieldset>
+        <label class="option-row">Color scheme <span class="select-pill"><select id="page-palette"><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></span></label>
+        <div class="option-row"><span id="preview-range-label">Date range</span><div id="preview-range"></div></div>
+        <div id="preview-controls" class="preview-actions"></div>
+      </section>
     </dialog>
     <dialog id="editor" aria-labelledby="editor-heading">
       <header class="dialog-heading"><h2 id="editor-heading">Chart settings</h2><button class="icon-button" type="button" data-close aria-label="Close chart settings">✕</button></header>
@@ -49,6 +63,6 @@
       <header class="dialog-heading"><h2 id="data-heading">Chart data</h2><button class="icon-button" type="button" data-close aria-label="Close chart data">✕</button></header>
       <div class="dialog-content"><p id="data-name"></p><div id="data-table"></div></div>
     </dialog>
-    <script type="module" src="./src/gallery.ts"></script>
+    <script type="module" src="./site/gallery.ts"></script>
   </body>
 </html>

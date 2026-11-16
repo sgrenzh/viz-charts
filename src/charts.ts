@@ -150,13 +150,27 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
     if (showY) shapes.push(label(right + 8, y(value) + 4, formatValue(value, config.yAxis)));
   });
   if (showX && indexes.length) {
-    const count = Math.max(2, Math.min(config.xAxis?.ticks ?? 12, Math.floor((right - left) / 45), indexes.length));
-    const visible = new Set(Array.from({ length: count }, (_, i) => Math.round(i * (indexes.length - 1) / (count - 1))));
-    visible.forEach(i => {
-      const x = center(i);
-      const align = x < 24 ? "start" : x > width - 24 ? "end" : "middle";
-      shapes.push(label(x, height - 12, config.labels[i], align));
+    const count = Math.min(indexes.length, Math.max(2, Math.min(config.xAxis?.ticks ?? 12, Math.floor((right - left) / 45))));
+    const candidates = Array.from({ length: count }, (_, tick) => {
+      const index = Math.round(tick * (indexes.length - 1) / Math.max(1, count - 1));
+      const text = config.labels[index];
+      const x = center(index);
+      // Use conservative glyph widths so the SVG layout works without browser font APIs.
+      const textWidth = Math.min(width, Array.from(text).reduce((pixels, character) => pixels + (character.charCodeAt(0) < 128 ? 8 : 11), 0));
+      const start = Math.max(0, Math.min(width - textWidth, x - textWidth / 2));
+      return { text, x: start + textWidth / 2, start, end: start + textWidth };
     });
+    const gap = 8;
+    const last = candidates.at(-1)!;
+    let previousEnd = -Infinity;
+    let previousText: string | undefined;
+    for (const tick of candidates) {
+      if (!tick.text || tick.text === previousText || tick.start < previousEnd + gap) continue;
+      if (tick !== last && last.text && tick.text !== last.text && tick.end + gap > last.start) continue;
+      shapes.push(label(tick.x, height - 12, tick.text, "middle"));
+      previousEnd = tick.end;
+      previousText = tick.text;
+    }
   }
   if (showX && config.xAxis?.label) shapes.push(label((left + right) / 2, height - 1, config.xAxis.label, "middle"));
   if (showY && config.yAxis?.label) shapes.push(label(right + 8, top, config.yAxis.label));
@@ -356,14 +370,16 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       else card.style.removeProperty("--viz-" + token);
     });
     card.dataset.chart = config.type;
+    const headingCopy = element("div", "viz-heading-copy");
     const title = element("h2");
     title.textContent = config.title;
-    header.replaceChildren(title);
+    headingCopy.append(title);
     if (config.headline) {
       const headline = element("p", "viz-headline");
       headline.textContent = config.headline;
-      header.append(headline);
+      headingCopy.append(headline);
     }
+    header.replaceChildren(headingCopy);
     if (options.controls) {
       header.append(options.controls);
     } else if (config.period) {
