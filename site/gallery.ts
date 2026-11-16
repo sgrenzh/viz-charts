@@ -289,9 +289,9 @@ const filters = Object.entries({ all: "All", ...familyLabels }).map(([family, la
   pill.setAttribute("aria-controls", gallery.id);
   pill.setAttribute("aria-pressed", String(family === activeFamily));
   pill.addEventListener("click", () => {
-    activeFamily = family;
-    for (const filter of filters) filter.pill.setAttribute("aria-pressed", String(filter.family === family));
-    charts.forEach((chart, i) => { chart.card.hidden = family !== "all" && chartFamily(configs[i]) !== family; });
+    activeFamily = family === activeFamily ? "all" : family;
+    for (const filter of filters) filter.pill.setAttribute("aria-pressed", String(filter.family === activeFamily));
+    charts.forEach((chart, i) => { chart.card.hidden = activeFamily !== "all" && chartFamily(configs[i]) !== activeFamily; });
   });
   byId("chart-types").append(pill);
   return { family, pill };
