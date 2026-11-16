@@ -1,5 +1,7 @@
 # Viz Charts
 
+[Open the live preview](https://sgrenzh.github.io/viz-charts/)
+
 A framework-independent TypeScript chart package with an SVG/HTML renderer and a web gallery of editable reference presets.
 
 ## Run the gallery
