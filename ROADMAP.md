@@ -10,7 +10,7 @@ Build a responsive chart package for designers and developers, with a typed code
 | --- | --- |
 | Column | Accounts created, Active accounts, Validators per election, Amount of sales, and Transaction count. Transaction count uses stacked columns. |
 | Line | Market cap. |
-| Line + aligned columns | Toncoin price and volume, with a shared time axis and independent value scales. |
+| Line + aligned columns | Price and volume, with a shared time axis and independent value scales. |
 | Calendar heatmap | Transactions, with a date-driven calendar grid and configurable color thresholds. |
 | Proportional strip | Contract types and Contract interfaces as presets of the same chart family. |
 | Interval timeline | Phases and milestones across lanes. Include in the first release if the SVG or Figma frame becomes available. The overview PNG is the current reference. |

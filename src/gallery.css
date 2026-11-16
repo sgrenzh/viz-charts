@@ -8,6 +8,7 @@
   --viz-page-muted: #686570;
   --viz-page-grid: #eeedef;
   --control-border: #dcdbdd;
+  --viz-page-accent: #343434;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -17,7 +18,13 @@
   --viz-page-muted: #b8b5c2;
   --viz-page-grid: #393740;
   --control-border: #4c4955;
+  --viz-page-accent: #dedede;
 }
+:root[data-palette="blue"] { --viz-page-accent: #4977e1; }
+:root[data-palette="orange"] { --viz-page-accent: #bc551d; }
+:root[data-palette="green"] { --viz-page-accent: #2d7b54; }
+:root[data-theme="dark"][data-palette="orange"] { --viz-page-accent: #fa995c; }
+:root[data-theme="dark"][data-palette="green"] { --viz-page-accent: #68c996; }
 body { margin: 0; background: var(--page); color: var(--viz-page-ink); font: 400 14px/1.5 "Noto Sans", system-ui, sans-serif; }
 .masthead { max-width: 1520px; padding: 32px clamp(16px, 5vw, 76px) 20px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.05em; }
@@ -27,7 +34,7 @@ main { max-width: 1520px; margin: auto; padding: 0 clamp(16px, 5vw, 76px) 48px; 
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
-  outline: 2px solid var(--viz-page-accent, #4977e1);
+  outline: 2px solid var(--viz-page-accent);
   outline-offset: 2px;
 }
 .masthead button, .actions button, .icon-button {
@@ -62,11 +69,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .chart-toolbar button { font-size: 11px; }
 .range-trigger:hover, .icon-button:hover { background: var(--viz-grid, var(--viz-page-grid)); }
 .range-menu {
+  --menu-row-size: 48px;
   position: absolute;
   z-index: 2;
-  top: calc(var(--active-row) * -1 * var(--control-size) - 1px);
-  left: -1px;
-  min-width: calc(100% + 2px);
+  top: calc((var(--control-size) - var(--menu-row-size)) / 2 - var(--active-row) * var(--menu-row-size) - 1px);
+  left: 0;
+  width: 100%;
   background: var(--viz-surface);
   border: 1px solid var(--control-border);
   border-radius: 8px;
@@ -78,19 +86,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   align-items: center;
   justify-content: space-between;
   gap: 4px;
-  height: var(--control-size);
+  height: var(--menu-row-size);
   width: 100%;
   padding: 0 8px;
   border: 0;
+  border-top: 1px solid transparent;
   border-bottom: 1px solid var(--viz-grid);
   background: transparent;
   color: var(--viz-ink);
   text-align: left;
   white-space: nowrap;
 }
-.range-menu button:last-child { border-bottom: 0; }
+.range-menu button:last-child { border-bottom-color: transparent; }
 .range-menu button:is(:hover, :focus-visible) { outline: none; background: var(--viz-grid); }
-.range-menu button[aria-checked="true"] { font-weight: 600; }
 .range-menu button[aria-checked="true"]:focus-visible { box-shadow: inset 0 0 0 2px var(--viz-accent); }
 
 dialog {
@@ -142,7 +150,7 @@ dialog::backdrop { background: #100c2066; }
 .dialog-content :is(input[type="color"], input[type="checkbox"]) { margin: 0; }
 .dialog-content fieldset { padding: 8px 12px 0; margin: 0 0 12px; border: 1px solid var(--control-border); border-radius: 8px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.actions #apply { background: #234caa; color: #fff; border-color: #234caa; }
+.actions #apply { background: var(--viz-page-ink); color: var(--viz-page-surface); border-color: var(--viz-page-ink); }
 #status { margin: 8px 0 0; }
 #status:empty { display: none; }
 #data-table { overflow: auto; }
@@ -151,7 +159,3 @@ dialog::backdrop { background: #100c2066; }
 #data-table :is(th, td):last-child { text-align: right; }
 @media (max-width: 1019px) { .gallery > div { grid-column: span max(6, var(--span, 4)); } }
 @media (max-width: 660px) { .gallery > div { grid-column: 1 / -1; } }
-@container (max-width: 340px) {
-  .viz-heading:has(.chart-toolbar) { grid-template-columns: minmax(0, 1fr); }
-  .chart-toolbar { justify-self: start; }
-}

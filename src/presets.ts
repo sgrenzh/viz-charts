@@ -16,7 +16,7 @@ const contractItems = [
   { label: "NFT item", value: 1_080_256 }, { label: "Wallet", value: 933_837 },
   { label: "NFT item sale", value: 765_447 }, { label: "Jetton wallet", value: 287_942 },
   { label: "Anonymous number", value: 136_566 }, { label: "Telegram username", value: 113_147 },
-  { label: "NFT item offer", value: 60_271 }, { label: "TON domain", value: 39_765 },
+  { label: "NFT item offer", value: 60_271 }, { label: "Domain", value: 39_765 },
   { label: "Other", value: 285_931 },
 ];
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0).toLocaleString("en");
@@ -28,7 +28,7 @@ export const presets: { config: ChartConfig; span: number }[] = [
   { span: 4, config: { version: 1, type: "column", title: "Amount of sales", headline: sum(sales), period: "Jan – Jun", height: 200, labels: months, series: [{ name: "Sales", values: sales }], barRadius: 8, yAxis: { show: false } } },
   { span: 4, config: { version: 1, type: "column", title: "Active accounts", headline: active[82].toLocaleString("en"), period: "1 month", height: 232, labels: labels(83, 3), series: [{ name: "Active accounts", values: active }], yAxis: { format: "compact" }, barWidth: 4 } },
   { span: 8, config: { version: 1, type: "heatmap", title: "Transactions", period: "1 year", days: Array.from({ length: 365 }, (_, i) => ({ date: date(i).toISOString().slice(0, 10), value: i % 7 > 0 && i % 7 < 6 ? Math.floor(noise(i) * (i % 28 < 13 ? 20 : 4)) : 0 })) } },
-  { span: 7, config: { version: 1, type: "line-column", title: "Toncoin price", headline: usd(price[250], 3), period: "1 month", height: 256, labels: labels(251, 8), series: [{ name: "Price", values: price }, { name: "Volume", values: volume }], yAxis: { format: "currency", digits: 3 }, marker: true } },
+  { span: 7, config: { version: 1, type: "line-column", title: "Price and volume", headline: usd(price[250], 3), period: "1 month", height: 256, labels: labels(251, 8), series: [{ name: "Price", values: price }, { name: "Volume", values: volume }], yAxis: { format: "currency", digits: 3 }, marker: true } },
   { span: 5, config: { version: 1, type: "strip", title: "Contract types", period: "By address count", height: 232, items: contractItems, selected: 3 } },
   { span: 7, config: { version: 1, type: "column", title: "Transaction count", period: "1 week", height: 264, labels: labels(168, 24), series: [{ name: "Users", values: range(168, i => Math.round(30_000 + 50_000 * noise(i) + 47_000 * Math.max(0, Math.sin(i * 0.26)))) }, { name: "Service", values: range(168, i => Math.round(6_000 + noise(i) * 8500)) }], yAxis: { format: "compact" }, stacked: true, barWidth: 4 } },
   { span: 5, config: { version: 1, type: "column", title: "Validators per election", period: "1 week", height: 264, labels: labels(40, 6), series: [{ name: "Validators", values: range(40, i => 175 + Math.floor(noise(i) * 182)) }], barStyle: "cap", barRadius: 2 } },

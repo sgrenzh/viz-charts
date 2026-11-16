@@ -15,7 +15,7 @@ npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite. Select **Customize** to change the gallery theme or accent. Use the gear on a chart to edit its settings and copy its configuration, or the table icon to inspect the plotted data.
+Open the local URL printed by Vite. Select **Customize** to change the gallery theme or choose Monochrome, Blue, Orange, or Green. Use the gear on a chart to edit its settings and copy its configuration, or the table icon to inspect the plotted data.
 
 ## Use in a web app
 

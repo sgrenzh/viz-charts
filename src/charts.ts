@@ -112,8 +112,8 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
   const height = config.height ?? 272;
   const showX = config.xAxis?.show !== false;
   const showY = config.yAxis?.show !== false;
-  const left = 24;
-  const right = width - (showY ? (width < 420 ? 48 : 72) : 24);
+  const left = 0;
+  const right = width - (showY ? (width < 420 ? 48 : 72) : 0);
   const top = 12;
   const bottom = height - (showX ? 32 : 12);
   const combo = config.type === "line-column";
@@ -148,7 +148,11 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
   if (showX && indexes.length) {
     const count = Math.max(2, Math.min(config.xAxis?.ticks ?? 12, Math.floor((right - left) / 45), indexes.length));
     const visible = new Set(Array.from({ length: count }, (_, i) => Math.round(i * (indexes.length - 1) / (count - 1))));
-    visible.forEach(i => shapes.push(label(center(i), height - 12, config.labels[i], "middle")));
+    visible.forEach(i => {
+      const x = center(i);
+      const align = x < 24 ? "start" : x > width - 24 ? "end" : "middle";
+      shapes.push(label(x, height - 12, config.labels[i], align));
+    });
   }
   if (showX && config.xAxis?.label) shapes.push(label((left + right) / 2, height - 1, config.xAxis.label, "middle"));
   if (showY && config.yAxis?.label) shapes.push(label(right + 8, top, config.yAxis.label));
@@ -225,7 +229,7 @@ function heatmap(config: HeatmapConfig, available: number, formatValue: typeof f
   const marks: Mark[] = [];
   let month = "";
   for (let i = 0; i < count; i++) {
-    const x = 24 + Math.floor(i / 7) * stride;
+    const x = Math.floor(i / 7) * stride;
     const y = 8 + i % 7 * stride;
     const date = new Date(first + i * dayMs);
     const value = data.get(date.getTime());
@@ -241,7 +245,8 @@ function heatmap(config: HeatmapConfig, available: number, formatValue: typeof f
       values: [[config.title, formatValue(value)]],
     });
   }
-  return { width: Math.max(available, 48 + Math.ceil(count / 7) * stride), height: stride * 7 + 36, shapes, marks };
+  const gridWidth = count ? Math.ceil(count / 7) * stride - gap : 0;
+  return { width: Math.max(available, gridWidth), height: stride * 7 + 36, shapes, marks };
 }
 
 function strip(config: StripConfig, width: number, formatValue: typeof format): Layout {
@@ -249,17 +254,16 @@ function strip(config: StripConfig, width: number, formatValue: typeof format): 
   const total = config.items.reduce((sum, item) => sum + Math.max(0, item.value), 0);
   const shapes: Shape[] = [];
   const marks: Mark[] = [];
-  let x = 24;
-  const chartWidth = width - 48;
+  let x = 0;
   config.items.forEach((item, i) => {
     const share = total ? Math.max(0, item.value) / total : 0;
-    const w = chartWidth * share;
+    const w = width * share;
     const fill = item.color ?? (i === config.selected ? color : tint(33));
     if (w > 0) shapes.push(shape("rect", { x, y: 0, width: w, height, fill, stroke: "var(--viz-surface)" }));
     marks.push({ label: item.label, x: x + w / 2, y: height / 2, values: [[item.label, formatValue(item.value)], ["Share", formatValue(share, { format: "percent", digits: 1 })]] });
     x += w;
   });
-  return { width, height, shapes, marks, clip: { x: 24, y: 0, width: chartWidth, height, rx: 8 } };
+  return { width, height, shapes, marks, clip: { x: 0, y: 0, width, height, rx: 8 } };
 }
 
 export function chartLayout(config: ChartConfig, width: number, options: ChartOptions = {}): Layout {
@@ -350,17 +354,17 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const title = element("h2");
     title.textContent = config.title;
     header.replaceChildren(title);
+    if (config.headline) {
+      const headline = element("p", "viz-headline");
+      headline.textContent = config.headline;
+      header.append(headline);
+    }
     if (options.controls) {
       header.append(options.controls);
     } else if (config.period) {
       const period = element("span", "viz-period");
       period.textContent = config.period;
       header.append(period);
-    }
-    if (config.headline) {
-      const headline = element("p", "viz-headline");
-      headline.textContent = config.headline;
-      header.append(headline);
     }
     chartBody.querySelector(".viz-legend")?.remove();
     header.querySelector(".viz-series")?.remove();

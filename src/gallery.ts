@@ -9,7 +9,7 @@ const dataDialog = byId<HTMLDialogElement>("data-dialog");
 const title = byId<HTMLInputElement>("title");
 const accent = byId<HTMLInputElement>("accent");
 const inheritAccent = byId<HTMLInputElement>("inherit-accent");
-const pageAccent = byId<HTMLInputElement>("page-accent");
+const pagePalette = byId<HTMLSelectElement>("page-palette");
 const pageTheme = byId<HTMLSelectElement>("page-theme");
 const font = byId<HTMLInputElement>("font");
 const xAxis = byId<HTMLInputElement>("axis-x");
@@ -17,7 +17,6 @@ const yAxis = byId<HTMLInputElement>("axis-y");
 const grid = byId<HTMLInputElement>("grid");
 const source = byId<HTMLTextAreaElement>("config");
 const status = byId("status");
-const defaultAccent = "#4977e1";
 
 interface View { label: string; count?: number }
 const dayMs = 86_400_000;
@@ -207,7 +206,8 @@ function sync() {
   const ownAccent = config.theme?.accent;
   inheritAccent.checked = ownAccent === undefined;
   accent.disabled = inheritAccent.checked;
-  accent.value = /^#[0-9a-f]{6}$/i.test(ownAccent ?? "") ? ownAccent! : pageAccent.value;
+  const galleryAccent = getComputedStyle(document.documentElement).getPropertyValue("--viz-page-accent").trim();
+  accent.value = /^#[0-9a-f]{6}$/i.test(ownAccent ?? "") ? ownAccent! : galleryAccent;
   font.value = config.theme?.fontFamily ?? "";
   const hasAxes = "series" in config;
   byId("axes").hidden = !hasAxes;
@@ -262,19 +262,19 @@ const themeQuery = matchMedia("(prefers-color-scheme: dark)");
 function applyAppearance() {
   const dark = pageTheme.value === "dark" || (pageTheme.value === "system" && themeQuery.matches);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
-  document.documentElement.style.setProperty("--viz-page-accent", pageAccent.value);
+  document.documentElement.dataset.palette = pagePalette.value;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#18171c" : "#f2f2f2");
-  try { localStorage.setItem("viz-gallery-appearance", JSON.stringify({ theme: pageTheme.value, accent: pageAccent.value })); } catch { /* Storage may be disabled. */ }
+  try { localStorage.setItem("viz-gallery-appearance", JSON.stringify({ theme: pageTheme.value, palette: pagePalette.value })); } catch { /* Storage may be disabled. */ }
 }
 try {
   const saved = JSON.parse(localStorage.getItem("viz-gallery-appearance") ?? "{}");
   if (["light", "dark", "system"].includes(saved?.theme)) pageTheme.value = saved.theme;
-  pageAccent.value = /^#[0-9a-f]{6}$/i.test(saved?.accent ?? "") ? saved.accent : defaultAccent;
+  if (Array.from(pagePalette.options).some(option => option.value === saved?.palette)) pagePalette.value = saved.palette;
 } catch { /* Use the defaults when settings are unavailable. */ }
 applyAppearance();
 themeQuery.addEventListener("change", applyAppearance);
 pageTheme.addEventListener("change", applyAppearance);
-pageAccent.addEventListener("input", applyAppearance);
+pagePalette.addEventListener("change", applyAppearance);
 byId("edit").addEventListener("click", () => { closeCurrentMenu?.(); appearance.showModal(); });
 for (const dialog of [appearance, editor, dataDialog]) {
   dialog.querySelector("[data-close]")?.addEventListener("click", () => dialog.close());
