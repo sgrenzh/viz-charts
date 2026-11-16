@@ -1,0 +1,34 @@
+{
+  "name": "viz-charts",
+  "version": "0.1.0",
+  "type": "module",
+  "files": [
+    "lib",
+    "src/charts.css"
+  ],
+  "main": "./lib/charts.js",
+  "types": "./lib/charts.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/charts.d.ts",
+      "import": "./lib/charts.js"
+    },
+    "./style.css": "./src/charts.css"
+  },
+  "scripts": {
+    "dev": "vite",
+    "check": "tsc --noEmit",
+    "build": "tsc && vite build"
+  },
+  "dependencies": {
+    "d3-scale": "^4.0.2",
+    "d3-shape": "^3.2.0"
+  },
+  "devDependencies": {
+    "@types/d3-scale": "^4.0.9",
+    "@types/d3-shape": "^3.1.8",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.0"
+  },
+  "description": "Responsive, customizable SVG charts for the web, with a typed API and live editor."
+}

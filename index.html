@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#F2F2F2">
+    <title>Viz Charts</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./src/charts.css">
+    <link rel="stylesheet" href="./src/gallery.css">
+  </head>
+  <body>
+    <header class="masthead"><h1>Viz Charts</h1><button id="edit" aria-expanded="false" aria-controls="editor">Customize</button></header>
+    <main>
+      <div id="gallery" class="gallery"></div>
+      <aside id="editor" hidden>
+        <h2>Customize chart</h2>
+        <label>Chart <select id="presets"></select></label>
+        <label>Title <input id="title" type="text"></label>
+        <label>Series color <input id="accent" type="color"></label>
+        <label>Font family <input id="font" type="text" placeholder="Noto Sans"></label>
+        <label>Horizontal axis <input id="axis-x" type="checkbox"></label>
+        <label>Vertical axis <input id="axis-y" type="checkbox"></label>
+        <label>Show gridlines <input id="grid" type="checkbox"></label>
+        <label>Configuration <textarea id="config" spellcheck="false" rows="14"></textarea></label>
+        <div class="actions"><button id="apply">Apply JSON</button><button id="copy">Copy JSON</button><button id="reset">Reset</button></div>
+        <p id="status" role="status"></p>
+      </aside>
+    </main>
+    <script type="module" src="./src/gallery.ts"></script>
+  </body>
+</html>

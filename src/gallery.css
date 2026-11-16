@@ -1,0 +1,31 @@
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: #f2f2f2; color: #1a1523; font: 400 14px/1.5 "Noto Sans", system-ui, sans-serif; }
+.masthead { max-width: 1520px; padding: 32px clamp(16px, 5vw, 76px) 20px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.05em; }
+main { max-width: 1520px; margin: auto; padding: 0 clamp(16px, 5vw, 76px) 48px; display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 16px; }
+.gallery { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.gallery > div { min-width: 0; grid-column: span var(--span, 4); }
+.gallery > div[data-selected] > section { outline: 2px solid #4977e1; }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+.masthead button, .actions button { background: #fdfcfd; border: 1px solid #dcdbdd; border-radius: 8px; padding: 6px 12px; color: inherit; }
+.masthead button[aria-expanded="true"], .actions #apply { background: #234caa; color: #fff; border-color: #234caa; }
+#editor { padding: 16px; background: #fdfcfd; border: 1px solid #eeedef; border-radius: 12px; min-width: 0; }
+#editor h2 { margin: 0 0 8px; font-size: 16px; }
+#editor label { display: grid; align-items: center; grid-template-columns: 1fr; gap: 4px; margin-bottom: 12px; }
+#editor :is(input[type="text"], select, textarea) { width: 100%; border: 1px solid #dcdbdd; border-radius: 4px; min-height: 32px; padding: 4px 8px; background: #fff; color: inherit; }
+#editor textarea { resize: vertical; font: 12px/1.5 ui-monospace, monospace; }
+#editor input[type="checkbox"] { justify-self: start; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+#status { margin: 8px 0 0; }
+@media (min-width: 1020px) {
+  main:has(#editor:not([hidden])) { grid-template-columns: minmax(0, 1fr) 300px; }
+  #editor { position: sticky; top: 16px; }
+  main:has(#editor:not([hidden])) .gallery > div { grid-column: span max(6, var(--span, 4)); }
+}
+@media (max-width: 1019px) {
+  #editor { grid-row: 1; }
+  .gallery > div { grid-column: span max(6, var(--span, 4)); }
+}
+@media (max-width: 660px) { .gallery > div { grid-column: 1 / -1; } }
