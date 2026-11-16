@@ -1,10 +1,12 @@
+@import "./typography.css";
+
 .viz-card {
   --viz-accent: var(--viz-page-accent, #343434);
   --viz-surface: var(--viz-page-surface, #fdfcfd);
   --viz-ink: var(--viz-page-ink, #1a1523);
   --viz-muted: var(--viz-page-muted, #686570);
   --viz-grid: var(--viz-page-grid, #eeedef);
-  --viz-font: "Noto Sans", system-ui, sans-serif;
+  --viz-font: var(--viz-type-family);
   position: relative;
   min-width: 0;
   padding: 24px;
@@ -12,7 +14,8 @@
   border-radius: 12px;
   background: var(--viz-surface);
   color: var(--viz-ink);
-  font: 400 14px/1.4 var(--viz-font);
+  font: var(--viz-type-regular) var(--viz-type-body-size)/var(--viz-type-body-line) var(--viz-font);
+  font-optical-sizing: auto;
 }
 .viz-heading {
   display: grid;
@@ -23,10 +26,10 @@
   margin-bottom: 12px;
 }
 .viz-heading-copy { display: grid; grid-area: 1 / 1; grid-template-columns: minmax(0, 1fr); row-gap: 24px; min-width: 0; }
-.viz-heading h2 { margin: 0; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.viz-heading h2 { margin: 0; font-size: var(--viz-type-body-size); font-weight: var(--viz-type-medium); overflow-wrap: anywhere; }
 .viz-heading > :is(.viz-period, .chart-toolbar) { grid-column: 2; grid-row: 1; justify-self: end; }
-.viz-period { border: 1px solid var(--viz-grid); border-radius: 8px; padding: 6px 12px; color: var(--viz-muted); font-size: 11px; }
-.viz-headline { inline-size: 100cqi; margin: 0; font-size: 28px; line-height: 1.15; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.viz-period { border: 1px solid var(--viz-grid); border-radius: 8px; padding: 6px 12px; color: var(--viz-muted); }
+.viz-headline { inline-size: 100cqi; margin: 0; font-size: var(--viz-type-value-size); line-height: var(--viz-type-value-line); letter-spacing: -0.025em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .viz-body { display: grid; grid-template-columns: minmax(0, 1fr); }
 .viz-body[data-legend-position] { gap: 16px; }
 .viz-card { container-type: inline-size; }
@@ -41,7 +44,13 @@
 }
 .viz-plot { overflow: auto; min-width: 0; scrollbar-width: thin; }
 .viz-plot svg { display: block; max-width: none; }
+.viz-axis-label { font-size: var(--viz-type-label-size); }
+.viz-axis-label, .viz-legend button span:last-child { font-variant-numeric: tabular-nums; }
 .viz-plot:focus-visible { outline: 2px solid var(--viz-accent); outline-offset: -2px; }
+.viz-period, .viz-tooltip, .viz-series, .viz-legend button {
+  font-size: var(--viz-type-label-size);
+  line-height: var(--viz-type-label-line);
+}
 .viz-tooltip {
   position: absolute;
   z-index: 2;
@@ -52,12 +61,12 @@
   background: #1a1523;
   color: #fdfcfd;
   box-shadow: 0 4px 12px #1a152328;
-  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
-.viz-tooltip strong { display: block; margin-bottom: 4px; }
-.viz-series { display: flex; flex-wrap: wrap; gap: 12px; grid-column: 1 / -1; font-size: 11px; }
+.viz-tooltip strong { display: block; margin-bottom: 4px; font-weight: var(--viz-type-semibold); }
+.viz-series { display: flex; flex-wrap: wrap; gap: 12px; grid-column: 1 / -1; }
 .viz-series span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 4px; border-radius: 50%; background: var(--series-color); }
-.viz-legend button { display: flex; justify-content: space-between; gap: 12px; width: 100%; border: 0; border-radius: 4px; background: none; color: var(--viz-muted); text-align: left; padding: 4px; font: inherit; font-size: 11px; cursor: pointer; }
+.viz-legend button { display: flex; justify-content: space-between; gap: 12px; width: 100%; border: 0; border-radius: 4px; background: none; color: var(--viz-muted); text-align: left; padding: 4px; font-family: inherit; font-weight: inherit; cursor: pointer; }
 .viz-legend button span:first-child { overflow-wrap: anywhere; }
 .viz-legend button span:last-child { flex: none; }
 .viz-legend button:is(:hover, :focus-visible) { color: var(--viz-ink); background: var(--viz-grid); }

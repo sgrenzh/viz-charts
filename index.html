@@ -3,19 +3,37 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#F2F2F2">
+    <meta name="theme-color" content="#FFFFFF">
     <title>Viz Charts</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./src/charts.css">
     <link rel="stylesheet" href="./site/gallery.css">
   </head>
   <body>
     <main class="gallery-page" aria-label="Viz Charts">
-      <nav id="chart-types" class="chart-types" aria-label="Chart types"></nav>
-      <div id="gallery" class="gallery chart-theme"></div>
+      <div class="chart-nav">
+        <button id="open-site-settings" class="icon-button site-settings-trigger" type="button" aria-label="Site settings" aria-haspopup="dialog" aria-controls="site-settings" title="Site settings"></button>
+        <div id="chart-types" class="chart-types" role="group" aria-label="Filter by chart type"></div>
+      </div>
+      <div id="gallery" class="gallery"></div>
     </main>
+    <dialog id="site-settings" aria-labelledby="site-settings-heading">
+      <header class="dialog-heading">
+        <h2 id="site-settings-heading">Site settings</h2>
+        <button class="icon-button close-button" type="button" data-close aria-label="Close site settings"></button>
+      </header>
+      <form id="site-appearance" class="site-settings-options">
+        <fieldset class="theme-row" aria-label="Site theme">
+          <span aria-hidden="true">Theme</span>
+          <div class="segmented">
+            <label><input type="radio" name="site-theme" value="light"><span>Light</span></label>
+            <label><input type="radio" name="site-theme" value="dark"><span>Dark</span></label>
+            <label><input type="radio" name="site-theme" value="system" checked><span>System</span></label>
+          </div>
+        </fieldset>
+        <label class="option-row">Color scheme <span class="select-pill"><select id="site-palette"><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></span></label>
+        <div class="actions site-settings-actions"><button id="apply-site-settings" type="submit">Apply to all charts</button></div>
+      </form>
+    </dialog>
     <dialog id="preview" class="preview-dialog" aria-labelledby="preview-heading">
       <div class="preview-stage chart-theme" id="preview-chart"></div>
       <section class="preview-options">
@@ -24,15 +42,16 @@
           <button class="icon-button close-button" type="button" data-close aria-label="Close chart preview"></button>
         </header>
         <label class="option-row" id="example-field" hidden>Example <span class="select-pill"><select id="preview-example"></select></span></label>
-        <fieldset class="theme-row" aria-label="Theme">
+        <fieldset class="theme-row" aria-label="Chart theme">
           <span aria-hidden="true">Theme</span>
-          <div class="segmented">
-            <label><input type="radio" name="page-theme" value="light"><span>Light</span></label>
-            <label><input type="radio" name="page-theme" value="dark"><span>Dark</span></label>
-            <label><input type="radio" name="page-theme" value="system" checked><span>System</span></label>
+          <div class="segmented segmented-chart">
+            <label><input type="radio" name="chart-theme" value="site" checked><span>Site</span></label>
+            <label><input type="radio" name="chart-theme" value="light"><span>Light</span></label>
+            <label><input type="radio" name="chart-theme" value="dark"><span>Dark</span></label>
+            <label><input type="radio" name="chart-theme" value="system"><span>System</span></label>
           </div>
         </fieldset>
-        <label class="option-row">Color scheme <span class="select-pill"><select id="page-palette"><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></span></label>
+        <label class="option-row">Color scheme <span class="select-pill"><select id="chart-palette"><option value="site">Site default</option><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></span></label>
         <div class="option-row"><span id="preview-range-label">Date range</span><div id="preview-range"></div></div>
         <div id="preview-controls" class="preview-actions"></div>
       </section>
@@ -42,9 +61,9 @@
       <div class="dialog-content">
         <p id="chart-name"></p>
         <label>Title <input id="title" type="text"></label>
-        <label>Use gallery accent <input id="inherit-accent" type="checkbox"></label>
+        <label>Use selected color scheme <input id="inherit-accent" type="checkbox"></label>
         <label>Chart accent <input id="accent" type="color"></label>
-        <label>Font family <input id="font" type="text" placeholder="Noto Sans"></label>
+        <label>Font family <input id="font" type="text" placeholder="Allo"></label>
         <label id="legend-position-field" hidden>List position
           <select id="legend-position"><option value="below">Below</option><option value="right" selected>Right</option><option value="left">Left</option></select>
         </label>

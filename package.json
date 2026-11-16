@@ -5,7 +5,10 @@
   "files": [
     "lib/charts.js",
     "lib/charts.d.ts",
-    "src/charts.css"
+    "src/charts.css",
+    "src/typography.css",
+    "src/fonts/AlloVariable.woff2",
+    "public/licenses/allo.txt"
   ],
   "main": "./lib/charts.js",
   "types": "./lib/charts.d.ts",

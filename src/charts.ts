@@ -79,6 +79,7 @@ let nextChartId = 0;
 const color = "var(--viz-accent)";
 const muted = "var(--viz-muted)";
 const rules = "var(--viz-grid)";
+const axisLabelSize = 12;
 const dayMs = 86_400_000;
 const tint = (strength: number) => `color-mix(in srgb, ${color} ${strength}%, var(--viz-surface))`;
 const heatColors = [16, 33, 50, 66, 83, 100].map(tint);
@@ -97,7 +98,7 @@ function shape(tag: Shape["tag"], attrs: Attrs, text?: string): Shape {
   return { tag, attrs, text };
 }
 function label(x: number, y: number, text: string, align = "start") {
-  return shape("text", { x, y, fill: muted, "text-anchor": align, "font-size": 11 }, text);
+  return shape("text", { x, y, fill: muted, "text-anchor": align, "font-size": axisLabelSize, class: "viz-axis-label" }, text);
 }
 
 function format(value: number, axis?: AxisConfig) {
@@ -156,7 +157,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
       const text = config.labels[index];
       const x = center(index);
       // Use conservative glyph widths so the SVG layout works without browser font APIs.
-      const textWidth = Math.min(width, Array.from(text).reduce((pixels, character) => pixels + (character.charCodeAt(0) < 128 ? 8 : 11), 0));
+      const textWidth = Math.min(width, Array.from(text).reduce((pixels, character) => pixels + (character.charCodeAt(0) < 128 ? axisLabelSize * 0.75 : axisLabelSize), 0));
       const start = Math.max(0, Math.min(width - textWidth, x - textWidth / 2));
       return { text, x: start + textWidth / 2, start, end: start + textWidth };
     });

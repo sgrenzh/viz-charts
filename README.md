@@ -15,7 +15,7 @@ npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite. Select a chart type or example to open its preview. Below the chart, use the appearance controls to change the gallery theme and color scheme, the settings button to edit or copy the configuration, or the data button to inspect the plotted values.
+Open the local URL printed by Vite. Use the first button to set the theme and color scheme across the site, or filter the gallery by chart type. Use the button in a chart card’s bottom-right corner to open its preview and change its appearance. In the preview, use the settings button to edit or copy the configuration, or the data button to inspect the plotted values.
 
 ## Use in a web app
 
@@ -39,3 +39,5 @@ const chart = mountChart(document.getElementById("chart"), {
 ```
 
 Call `chart.update(config)` when your data or settings change and `chart.destroy()` when you remove the chart.
+
+The chart stylesheet loads [Allo](https://allo.joshpuckett.me/) by default and shares a type scale with the gallery. Set `theme.fontFamily` to use your own font on a chart. Allo ships under the [SIL Open Font License](public/licenses/allo.txt).

@@ -3,6 +3,9 @@ import { presets } from "./presets.js";
 
 const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const gallery = byId("gallery");
+const siteSettings = byId<HTMLDialogElement>("site-settings");
+const sitePalette = byId<HTMLSelectElement>("site-palette");
+const siteThemeOptions = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="site-theme"]'));
 const preview = byId<HTMLDialogElement>("preview");
 const previewHost = byId("preview-chart");
 const previewActions = byId("preview-controls");
@@ -14,8 +17,8 @@ const dataDialog = byId<HTMLDialogElement>("data-dialog");
 const title = byId<HTMLInputElement>("title");
 const accent = byId<HTMLInputElement>("accent");
 const inheritAccent = byId<HTMLInputElement>("inherit-accent");
-const pagePalette = byId<HTMLSelectElement>("page-palette");
-const themeOptions = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="page-theme"]'));
+const chartPalette = byId<HTMLSelectElement>("chart-palette");
+const themeOptions = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="chart-theme"]'));
 const font = byId<HTMLInputElement>("font");
 const xAxis = byId<HTMLInputElement>("axis-x");
 const yAxis = byId<HTMLInputElement>("axis-y");
@@ -32,7 +35,49 @@ const familyLabels = {
   heatmap: "Calendar heatmap",
   strip: "Proportional strip",
 };
-const presetFamilies = presets.map(({ config }) => config.type === "column" && config.stacked ? "stacked" : config.type);
+function chartFamily(config: ChartConfig) {
+  return config.type === "column" && config.stacked ? "stacked" : config.type;
+}
+const presetFamilies = presets.map(({ config }) => chartFamily(config));
+const chartThemes = ["system", "light", "dark"] as const;
+const chartPalettes = ["monochrome", "blue", "orange", "green"] as const;
+interface Appearance {
+  theme: typeof chartThemes[number];
+  palette: typeof chartPalettes[number];
+}
+const siteAppearanceKey = "viz-site-appearance";
+const chartAppearanceKey = "viz-chart-appearance";
+const themeQuery = matchMedia("(prefers-color-scheme: dark)");
+
+function readStored(key: string): unknown {
+  try { return JSON.parse(localStorage.getItem(key) ?? "null"); } catch { return null; }
+}
+
+function readAppearance(value: unknown): Partial<Appearance> {
+  if (!isRecord(value)) return {};
+  return {
+    theme: chartThemes.find(theme => theme === value.theme),
+    palette: chartPalettes.find(palette => palette === value.palette),
+  };
+}
+
+const savedSite = readAppearance(readStored(siteAppearanceKey) ?? readStored("viz-gallery-appearance"));
+let siteAppearance: Appearance = {
+  theme: savedSite.theme ?? "system",
+  palette: savedSite.palette ?? "monochrome",
+};
+const storedCharts = readStored(chartAppearanceKey);
+const appearances = presets.map(({ config }) => readAppearance(isRecord(storedCharts) ? storedCharts[config.title] : null));
+
+function isDark(theme: Appearance["theme"]) {
+  return theme === "dark" || (theme === "system" && themeQuery.matches);
+}
+
+function styleChartAppearance(host: HTMLElement, index: number) {
+  const { theme, palette } = appearances[index];
+  host.dataset.chartTheme = isDark(theme ?? siteAppearance.theme) ? "dark" : "light";
+  host.dataset.chartPalette = palette ?? siteAppearance.palette;
+}
 
 interface View { label: string; count?: number }
 const dayMs = 86_400_000;
@@ -58,6 +103,7 @@ const icons = {
   check: '<path d="m5 12 4 4L19 6"/>',
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
   settings: '<path d="M10 3h4l.6 2.6 2 .9 2.3-.9 2 3.4-1.8 1.7v2.6l1.8 1.7-2 3.4-2.3-.9-2 .9L14 21h-4l-.6-2.6-2-.9-2.3.9-2-3.4 1.8-1.7v-2.6L3.1 9l2-3.4 2.3.9 2-.9z"/><circle cx="12" cy="12" r="3"/>',
+  sliders: '<path d="M3 6h9m4 0h5M3 12h5m4 0h9M3 18h11m4 0h3M12 4v4M8 10v4m6 2v4"/>',
   data: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M10 9v11"/>',
 };
 function icon(name: keyof typeof icons) {
@@ -76,7 +122,14 @@ function button(name: string, iconName: keyof typeof icons) {
   control.append(icon(iconName));
   return control;
 }
-preview.querySelectorAll(".select-pill").forEach(pill => pill.append(icon("chevron")));
+document.querySelectorAll(".select-pill").forEach(pill => pill.append(icon("chevron")));
+const siteSettingsButton = byId("open-site-settings");
+siteSettingsButton.append(icon("settings"));
+siteSettingsButton.addEventListener("click", () => {
+  sitePalette.value = siteAppearance.palette;
+  siteThemeOptions.forEach(option => { option.checked = option.value === siteAppearance.theme; });
+  siteSettings.showModal();
+});
 
 function viewsFor(index: number) {
   const config = configs[index];
@@ -211,27 +264,34 @@ const charts = presets.map(({ span }, index) => {
   card.className = "gallery-tile";
   card.style.setProperty("--span", String(span));
   const host = document.createElement("div");
-  host.inert = true;
-  const opener = button(`Preview ${configs[index].title}`, "chevron");
-  opener.className = "tile-opener";
-  opener.setAttribute("aria-haspopup", "dialog");
-  opener.addEventListener("click", () => showPreview(index));
-  card.append(host, opener);
+  host.className = "chart-theme";
+  styleChartAppearance(host, index);
+  const settingsButton = button(`Chart settings for ${configs[index].title}`, "sliders");
+  settingsButton.classList.add("tile-settings");
+  settingsButton.setAttribute("aria-haspopup", "dialog");
+  settingsButton.setAttribute("aria-controls", preview.id);
+  settingsButton.addEventListener("click", () => showPreview(index));
+  card.append(host, settingsButton);
   gallery.append(card);
   const { toolbar, range, refresh } = createToolbar(index);
-  return { toolbar, range, refresh, opener, ...mountChart(host, previewConfig(index)) };
+  return { card, host, toolbar, range, refresh, settingsButton, ...mountChart(host, previewConfig(index)) };
 });
 
-for (const [family, label] of Object.entries(familyLabels)) {
-  const first = presetFamilies.findIndex(value => value === family);
-  if (first < 0) continue;
+let activeFamily = "all";
+const filters = Object.entries({ all: "All", ...familyLabels }).map(([family, label]) => {
   const pill = document.createElement("button");
   pill.type = "button";
   pill.textContent = label;
-  pill.setAttribute("aria-haspopup", "dialog");
-  pill.addEventListener("click", () => showPreview(first));
+  pill.setAttribute("aria-controls", gallery.id);
+  pill.setAttribute("aria-pressed", String(family === activeFamily));
+  pill.addEventListener("click", () => {
+    activeFamily = family;
+    for (const filter of filters) filter.pill.setAttribute("aria-pressed", String(filter.family === family));
+    charts.forEach((chart, i) => { chart.card.hidden = family !== "all" && chartFamily(configs[i]) !== family; });
+  });
   byId("chart-types").append(pill);
-}
+  return { family, pill };
+});
 
 let previewIndex = -1;
 let detail: ReturnType<typeof mountChart> | undefined;
@@ -248,6 +308,24 @@ function syncPreview(index: number) {
   byId("preview-heading").textContent = configs[index].title;
   byId("preview-range-label").textContent = configs[index].type === "strip" ? "Sort by" : "Date range";
   example.selectedOptions[0].textContent = configs[index].title;
+}
+
+function syncPreviewAppearance(index: number) {
+  const appearance = appearances[index];
+  chartPalette.value = appearance.palette ?? "site";
+  themeOptions.forEach(option => { option.checked = option.value === (appearance.theme ?? "site"); });
+  styleChartAppearance(previewHost, index);
+}
+
+function storeChartAppearances() {
+  const byTitle = Object.fromEntries(presets.map(({ config }, i) => [config.title, appearances[i]]));
+  try { localStorage.setItem(chartAppearanceKey, JSON.stringify(byTitle)); } catch { /* Storage may be unavailable. */ }
+}
+
+function saveChartAppearance(index: number) {
+  styleChartAppearance(charts[index].host, index);
+  if (previewIndex === index) syncPreviewAppearance(index);
+  storeChartAppearances();
 }
 
 function detailConfig(index: number): ChartConfig {
@@ -307,6 +385,7 @@ function showPreview(index: number) {
   example.value = String(index);
   exampleField.hidden = examples.length < 2;
   syncPreview(index);
+  syncPreviewAppearance(index);
   previewRange.replaceChildren(charts[index].range);
   previewActions.replaceChildren(charts[index].toolbar);
   previewHost.style.setProperty("--preview-chart-width", `${Math.round(presets[index].sourceSize[0] * 0.7)}px`);
@@ -331,9 +410,10 @@ preview.addEventListener("close", () => {
 
 function drawChart(index: number) {
   const chart = charts[index];
+  chart.card.hidden = activeFamily !== "all" && chartFamily(configs[index]) !== activeFamily;
   chart.refresh();
-  chart.opener.setAttribute("aria-label", `Preview ${configs[index].title}`);
-  chart.opener.title = `Preview ${configs[index].title}`;
+  chart.settingsButton.setAttribute("aria-label", `Chart settings for ${configs[index].title}`);
+  chart.settingsButton.title = `Chart settings for ${configs[index].title}`;
   const config = previewConfig(index);
   chart.update(config);
   if (previewIndex === index && detail) {
@@ -351,8 +431,8 @@ function sync() {
   const ownAccent = config.theme?.accent;
   inheritAccent.checked = ownAccent === undefined;
   accent.disabled = inheritAccent.checked;
-  const galleryAccent = getComputedStyle(gallery).getPropertyValue("--viz-page-accent").trim();
-  accent.value = /^#[0-9a-f]{6}$/i.test(ownAccent ?? "") ? ownAccent! : galleryAccent;
+  const schemeAccent = getComputedStyle(charts[chosen].host).getPropertyValue("--viz-page-accent").trim();
+  accent.value = /^#[0-9a-f]{6}$/i.test(ownAccent ?? "") ? ownAccent! : schemeAccent || "#343434";
   font.value = config.theme?.fontFamily ?? "";
   const hasAxes = "series" in config;
   byId("axes").hidden = !hasAxes;
@@ -388,7 +468,7 @@ function applyControls() {
 }
 
 function showData(index: number) {
-  const rows = charts[index].getData();
+  const rows = (index === previewIndex && detail ? detail : charts[index]).getData();
   byId("data-name").textContent = configs[index].title + " · " + viewsFor(index)[selectedViews[index]].label;
   const table = document.createElement("table");
   const head = table.createTHead().insertRow();
@@ -407,26 +487,54 @@ function showData(index: number) {
   dataDialog.showModal();
 }
 
-const themeQuery = matchMedia("(prefers-color-scheme: dark)");
-function applyAppearance() {
-  const theme = themeOptions.find(option => option.checked)?.value ?? "system";
-  const dark = theme === "dark" || (theme === "system" && themeQuery.matches);
+function applySiteAppearance() {
+  const dark = isDark(siteAppearance.theme);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
-  document.documentElement.dataset.palette = pagePalette.value;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0d0d0d" : "#f2f2f2");
-  try { localStorage.setItem("viz-gallery-appearance", JSON.stringify({ theme, palette: pagePalette.value })); } catch { /* Storage may be disabled. */ }
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0d0d0d" : "#ffffff");
+  charts.forEach(({ host }, index) => styleChartAppearance(host, index));
+  if (previewIndex >= 0) styleChartAppearance(previewHost, previewIndex);
 }
-try {
-  const saved = JSON.parse(localStorage.getItem("viz-gallery-appearance") ?? "{}");
-  const savedTheme = themeOptions.find(option => option.value === saved?.theme);
-  if (savedTheme) savedTheme.checked = true;
-  if (Array.from(pagePalette.options).some(option => option.value === saved?.palette)) pagePalette.value = saved.palette;
-} catch { /* Use the defaults when settings are unavailable. */ }
-applyAppearance();
-themeQuery.addEventListener("change", applyAppearance);
-themeOptions.forEach(option => option.addEventListener("change", applyAppearance));
-pagePalette.addEventListener("change", applyAppearance);
-for (const dialog of [preview, editor, dataDialog]) {
+applySiteAppearance();
+themeQuery.addEventListener("change", applySiteAppearance);
+
+function useSchemeAccent(index: number) {
+  const config = configs[index];
+  if (config.theme?.accent === undefined) return;
+  configs[index] = { ...config, theme: { ...config.theme, accent: undefined } };
+  drawChart(index);
+}
+
+byId("site-appearance").addEventListener("submit", event => {
+  event.preventDefault();
+  const theme = chartThemes.find(value => value === siteThemeOptions.find(option => option.checked)?.value);
+  const palette = chartPalettes.find(value => value === sitePalette.value);
+  if (!theme || !palette) return;
+  siteAppearance = { theme, palette };
+  charts.forEach((_, index) => {
+    appearances[index] = {};
+    useSchemeAccent(index);
+  });
+  applySiteAppearance();
+  try { localStorage.setItem(siteAppearanceKey, JSON.stringify(siteAppearance)); } catch { /* Storage may be unavailable. */ }
+  storeChartAppearances();
+  siteSettings.close();
+});
+
+themeOptions.forEach(option => option.addEventListener("change", () => {
+  const theme = chartThemes.find(value => value === option.value);
+  if (previewIndex < 0 || !option.checked || (!theme && option.value !== "site")) return;
+  appearances[previewIndex].theme = theme;
+  saveChartAppearance(previewIndex);
+}));
+chartPalette.addEventListener("change", () => {
+  const index = previewIndex;
+  const palette = chartPalettes.find(value => value === chartPalette.value);
+  if (index < 0 || (!palette && chartPalette.value !== "site")) return;
+  appearances[index].palette = palette;
+  saveChartAppearance(index);
+  useSchemeAccent(index);
+});
+for (const dialog of [siteSettings, preview, editor, dataDialog]) {
   const close = dialog.querySelector("[data-close]");
   if (!close?.hasChildNodes()) close?.append(icon("close"));
   close?.addEventListener("click", () => dialog.close());
@@ -520,6 +628,8 @@ byId("copy").addEventListener("click", async () => {
   }
 });
 byId("reset").addEventListener("click", () => {
+  appearances[chosen] = {};
+  saveChartAppearance(chosen);
   update(structuredClone(presets[chosen].config));
   status.textContent = "Preset restored.";
 });

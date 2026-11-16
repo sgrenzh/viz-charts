@@ -1,0 +1,24 @@
+@font-face {
+  font-family: "Allo";
+  src: url("./fonts/AlloVariable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --viz-type-family: "Allo", system-ui, sans-serif;
+  --viz-type-regular: 400;
+  --viz-type-medium: 500;
+  --viz-type-semibold: 600;
+  --viz-type-label-size: 12px;
+  --viz-type-label-line: 16px;
+  --viz-type-body-size: 14px;
+  --viz-type-body-line: 20px;
+  --viz-type-subheading-size: 16px;
+  --viz-type-subheading-line: 24px;
+  --viz-type-heading-size: 20px;
+  --viz-type-heading-line: 28px;
+  --viz-type-value-size: 28px;
+  --viz-type-value-line: 32px;
+}
