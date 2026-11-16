@@ -185,7 +185,7 @@ function createToolbar(index: number) {
   settings.setAttribute("aria-haspopup", "dialog");
   data.setAttribute("aria-haspopup", "dialog");
   range.append(trigger, menu);
-  toolbar.append(settings, data);
+  toolbar.append(settings);
 
   function refresh() {
     const config = configs[index];
@@ -256,7 +256,7 @@ function createToolbar(index: number) {
   });
   data.addEventListener("click", () => showData(index));
   refresh();
-  return { toolbar, range, refresh };
+  return { toolbar, range, data, refresh };
 }
 
 const charts = presets.map(({ span }, index) => {
@@ -271,9 +271,13 @@ const charts = presets.map(({ span }, index) => {
   settingsButton.setAttribute("aria-haspopup", "dialog");
   settingsButton.setAttribute("aria-controls", preview.id);
   settingsButton.addEventListener("click", () => showPreview(index));
-  card.append(host, settingsButton);
+  const { toolbar, range, data, refresh } = createToolbar(index);
+  const actions = document.createElement("div");
+  actions.className = "tile-actions";
+  data.setAttribute("aria-controls", dataDialog.id);
+  actions.append(data, settingsButton);
+  card.append(host, actions);
   gallery.append(card);
-  const { toolbar, range, refresh } = createToolbar(index);
   return { card, host, toolbar, range, refresh, settingsButton, ...mountChart(host, previewConfig(index)) };
 });
 
@@ -468,7 +472,7 @@ function applyControls() {
 }
 
 function showData(index: number) {
-  const rows = (index === previewIndex && detail ? detail : charts[index]).getData();
+  const rows = charts[index].getData();
   byId("data-name").textContent = configs[index].title + " · " + viewsFor(index)[selectedViews[index]].label;
   const table = document.createElement("table");
   const head = table.createTHead().insertRow();

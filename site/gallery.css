@@ -76,27 +76,30 @@ button { cursor: pointer; }
   white-space: nowrap;
 }
 .chart-nav button:hover { background: var(--button-hover); }
+.chart-types button { font-weight: var(--viz-type-medium); }
 .chart-types button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
 .chart-nav .site-settings-trigger { width: var(--pill-size); height: var(--pill-size); padding: 0; }
 .gallery { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .gallery-tile {
-  --tile-inset: clamp(20px, calc(2vw + 8px), 40px);
+  --tile-inset: clamp(24px, calc(2vw + 16px), 48px);
   position: relative;
   display: grid;
   align-content: center;
   grid-column: span var(--span, 4);
   min-width: 0;
   min-height: 352px;
-  padding: var(--tile-inset) var(--tile-inset) 64px;
+  padding: calc(var(--pill-size) + 16px) var(--tile-inset);
   border-radius: 28px;
   background: var(--gallery-tile);
 }
-.tile-settings {
+.tile-actions {
   position: absolute;
   right: 8px;
   bottom: 8px;
+  display: flex;
+  gap: 4px;
 }
-:is(.tile-settings, .chart-toolbar, .close-button, .select-pill, .chart-range, .site-settings-trigger) svg {
+:is(.tile-actions, .chart-toolbar, .close-button, .select-pill, .chart-range, .site-settings-trigger) svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.7;
@@ -118,7 +121,7 @@ dialog {
 }
 dialog::backdrop { background: #0009; }
 .preview-dialog { width: min(880px, calc(100% - 24px)); background: transparent; overscroll-behavior: contain; overflow-anchor: none; }
-.preview-stage, .preview-options { border-radius: 28px; background: var(--panel); }
+.preview-stage, .preview-options { border-radius: 28px; background: var(--gallery-tile); }
 .preview-stage { display: grid; place-items: center; min-block-size: 424px; padding-block: 24px; }
 .preview-stage > .viz-card { inline-size: min(calc(100% - 32px), var(--preview-chart-width, 640px)); }
 .preview-options { margin-top: 10px; padding: clamp(16px, 3vw, 28px); }
@@ -240,8 +243,15 @@ dialog::backdrop { background: #0009; }
 @media (max-width: 1019px) { .gallery-tile { grid-column: span max(6, var(--span, 4)); } }
 @media (max-width: 660px) {
   .gallery-tile { grid-column: 1 / -1; min-height: 0; }
-  .preview-dialog { max-height: calc(100dvh - 20px); }
-  .preview-stage { min-block-size: min(calc((100vw - 24px) * 1.06), 424px); }
+  .preview-dialog[open] {
+    display: flex;
+    flex-direction: column;
+    block-size: 100dvh;
+    max-block-size: 100dvh;
+    padding-block: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-bottom));
+  }
+  .preview-stage { flex: 1 0 auto; min-block-size: min(calc((100vw - 24px) * 1.06), 424px); }
+  .preview-options { flex: 0 0 auto; }
 }
 @media (max-width: 360px) { .segmented { font-size: var(--viz-type-label-size); } }
 @media (max-width: 440px) { .segmented-chart label:not(:first-child, :last-child) span { padding-inline: 8px; } }

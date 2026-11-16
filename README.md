@@ -15,7 +15,7 @@ npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite. Use the first button to set the theme and color scheme across the site, or filter the gallery by chart type. Use the button in a chart card’s bottom-right corner to open its preview and change its appearance. In the preview, use the settings button to edit or copy the configuration, or the data button to inspect the plotted values.
+Open the local URL printed by Vite. Use the first button to set the theme and color scheme across the site, or filter by chart type. On each card, use the data button to inspect the plotted values and the settings button to open the preview. In the preview, you can change the chart’s appearance and edit or copy its configuration.
 
 ## Use in a web app
 
