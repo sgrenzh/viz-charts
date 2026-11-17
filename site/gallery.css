@@ -55,7 +55,7 @@
 .chart-theme[data-chart-palette="green"] { --chart-accent-light: #2d7b54; --chart-accent-dark: #68c996; }
 .chart-theme > .viz-card { border-radius: 20px; }
 body { margin: 0; background: var(--gallery-background); color: var(--ink); font: var(--viz-type-regular) var(--viz-type-body-size)/var(--viz-type-body-line) var(--viz-type-family); font-optical-sizing: auto; }
-body:has(:is(.preview-dialog, #site-settings)[open]) { overflow: hidden; }
+body:has(:is(.preview-dialog, #site-settings, #editor)[open]) { overflow: hidden; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 :is(button, input, .segmented label) { -webkit-tap-highlight-color: transparent; }
@@ -206,11 +206,13 @@ dialog::backdrop { background: #0009; }
 .preview-dialog::backdrop { background: rgb(255 255 255 / 80%); backdrop-filter: blur(16px); }
 .preview-content { display: grid; flex: none; gap: var(--preview-spacing); width: 100%; margin: auto; }
 .preview-stage, .preview-options { border-radius: 28px; background: var(--gallery-tile); }
-.preview-stage { position: relative; display: grid; place-items: center; min-block-size: 424px; padding-block: 24px; }
+.preview-stage { position: relative; display: grid; place-items: center; min-block-size: 424px; padding-block: 54px 16px; }
 .preview-chart { inline-size: min(calc(100% - 32px), var(--preview-chart-width, 100%)); }
+.preview-close { position: absolute; inset-block-start: 10px; inset-inline-end: 12px; z-index: 3; }
 .preview-options {
   --button: #d9d9d9;
   --button-hover: #cecece;
+  --switch-active-track: #b8b8b8;
   --preview-options-padding: clamp(16px, 3vw, 28px);
   display: flex;
   flex-direction: column;
@@ -219,11 +221,11 @@ dialog::backdrop { background: #0009; }
   max-block-size: calc(100dvh - 2 * var(--preview-spacing));
   overflow: hidden;
 }
-:root[data-theme="dark"] .preview-options { --button: #2e2e2e; --button-hover: #3a3a3a; }
+:root[data-theme="dark"] .preview-options { --button: #2e2e2e; --button-hover: #3a3a3a; --switch-active-track: #696969; }
 #site-settings { max-width: 420px; }
 .site-settings-options { padding: 16px 20px 20px; }
 .site-settings-actions { justify-content: flex-end; margin-top: 20px; }
-.preview-heading, .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .preview-heading { flex: none; padding: var(--preview-options-padding) var(--preview-options-padding) 12px; }
 .preview-heading h2 { margin: 0; font-size: var(--viz-type-heading-size); font-weight: var(--viz-type-semibold); line-height: var(--viz-type-heading-line); }
 .preview-fields {
@@ -279,6 +281,30 @@ dialog::backdrop { background: #0009; }
 @media (hover: hover) { .segmented label:hover span { background: var(--button-hover); color: var(--ink); } }
 .segmented input:checked + span { background: var(--button-selected); color: var(--ink); }
 .segmented input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 1px; }
+.preview-plot-options { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
+.preview-plot-options legend { padding: 0; margin-block: 4px 8px; font-weight: var(--viz-type-semibold); }
+.switch-row { position: relative; min-block-size: var(--pill-size); cursor: pointer; touch-action: manipulation; }
+.switch-row input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; }
+.switch-track {
+  position: relative;
+  flex: none;
+  inline-size: 44px;
+  block-size: 26px;
+  border-radius: 999px;
+  background: var(--button);
+}
+.switch-track::before {
+  content: "";
+  position: absolute;
+  inset-block: 4px;
+  inset-inline-start: 4px;
+  inline-size: 18px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.switch-row input:checked + .switch-track { background: var(--switch-active-track); }
+.switch-row input:checked + .switch-track::before { inset-inline-start: 22px; background: #000; }
+.switch-row input:focus-visible + .switch-track { outline: 2px solid var(--ink); outline-offset: 2px; }
 .preview-actions {
   position: relative;
   flex: none;
@@ -377,7 +403,7 @@ dialog::backdrop { background: #0009; }
     grid-template-rows: minmax(0, 1fr) auto;
     block-size: 100%;
   }
-  .preview-stage { grid-template-rows: minmax(0, 1fr); min-block-size: 0; padding: 8px 0; }
+  .preview-stage { grid-template-rows: minmax(0, 1fr); min-block-size: 0; padding-block-end: 8px; }
   .preview-chart { transform: scale(var(--preview-scale, 1)); }
   .preview-options { max-block-size: 50dvh; }
 }

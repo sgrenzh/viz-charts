@@ -35,14 +35,15 @@
     </dialog>
     <dialog id="preview" class="preview-dialog" aria-labelledby="preview-heading">
       <div class="preview-content">
-        <div class="preview-stage" id="preview-stage"><div class="preview-chart chart-theme" id="preview-chart"></div></div>
+        <div class="preview-stage" id="preview-stage">
+          <div class="preview-chart chart-theme" id="preview-chart"></div>
+          <button class="icon-button close-button preview-close" id="preview-close" type="button" data-close aria-label="Close chart preview" autofocus></button>
+        </div>
         <section class="preview-options">
           <header class="preview-heading">
             <h2 id="preview-heading"></h2>
-            <button class="icon-button close-button" type="button" data-close aria-label="Close chart preview" autofocus></button>
           </header>
           <div class="preview-fields" id="preview-fields">
-            <div class="option-row" id="example-field" hidden><span id="preview-example-label">Example</span><select id="preview-example" aria-labelledby="preview-example-label"></select></div>
             <fieldset class="theme-row" aria-label="Chart theme">
               <span aria-hidden="true">Theme</span>
               <div class="segmented segmented-chart">
@@ -53,23 +54,23 @@
             </fieldset>
             <div class="option-row"><span id="chart-palette-label">Color scheme</span><select id="chart-palette" aria-labelledby="chart-palette-label"><option value="site">Site default</option><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></div>
             <div class="option-row"><span id="preview-range-label">Date range</span><div id="preview-range"></div></div>
+            <div class="option-row" id="legend-position-field" hidden><span id="legend-position-label">List position</span><select id="legend-position" aria-labelledby="legend-position-label"><option value="below">Below</option><option value="right" selected>Right</option><option value="left">Left</option></select></div>
+            <fieldset id="axes" class="preview-plot-options"><legend>Plot options</legend>
+              <label class="option-row switch-row">Horizontal axis <input id="axis-x" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label>
+              <label class="option-row switch-row">Vertical axis <input id="axis-y" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label>
+              <label class="option-row switch-row">Gridlines <input id="grid" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label>
+              <label class="option-row switch-row" id="gradient-fill-field" hidden>Gradient fill <input id="gradient-fill" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label>
+              <label class="option-row switch-row" id="show-volume-field" hidden>Show volume <input id="show-volume" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label>
+            </fieldset>
           </div>
           <div id="preview-controls" class="preview-actions"></div>
         </section>
       </div>
     </dialog>
     <dialog id="editor" aria-labelledby="editor-heading">
-      <header class="dialog-heading"><h2 id="editor-heading">Chart settings</h2><button class="icon-button" type="button" data-close aria-label="Close chart settings">✕</button></header>
+      <header class="dialog-heading"><h2 id="editor-heading">Chart configurator</h2><button class="icon-button" type="button" data-close aria-label="Close chart configurator">✕</button></header>
       <div class="dialog-content">
         <p id="chart-name"></p>
-        <div class="option-row" id="legend-position-field" hidden><span id="legend-position-label">List position</span><select id="legend-position" aria-labelledby="legend-position-label"><option value="below">Below</option><option value="right" selected>Right</option><option value="left">Left</option></select></div>
-        <fieldset id="axes"><legend>Plot options</legend>
-          <label>Horizontal axis <input id="axis-x" type="checkbox"></label>
-          <label>Vertical axis <input id="axis-y" type="checkbox"></label>
-          <label>Gridlines <input id="grid" type="checkbox"></label>
-          <label id="gradient-fill-field" hidden>Gradient fill <input id="gradient-fill" type="checkbox"></label>
-          <label id="show-volume-field" hidden>Show volume <input id="show-volume" type="checkbox"></label>
-        </fieldset>
         <label>Configuration <textarea id="config" spellcheck="false" rows="9"></textarea></label>
         <div class="actions"><button type="button" id="apply">Apply JSON</button><button type="button" id="copy">Copy JSON</button><button type="button" id="reset">Reset</button></div>
         <p id="status" role="status"></p>
