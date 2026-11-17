@@ -68,7 +68,10 @@ let siteAppearance: Appearance = {
   palette: savedSite.palette ?? "monochrome",
 };
 const storedCharts = readStored(chartAppearanceKey);
-const appearances = presets.map(({ config }) => readAppearance(isRecord(storedCharts) ? storedCharts[config.title] : null));
+const appearances = presets.map(({ config }): Partial<Appearance> => {
+  const { theme, palette } = readAppearance(isRecord(storedCharts) ? storedCharts[config.title] : null);
+  return { theme: theme === "system" ? undefined : theme, palette };
+});
 
 function isDark(theme: Appearance["theme"]) {
   return theme === "dark" || (theme === "system" && themeQuery.matches);
@@ -178,9 +181,7 @@ function viewConfig(index: number): ChartConfig {
   return config;
 }
 
-function createToolbar(index: number) {
-  const toolbar = document.createElement("div");
-  toolbar.className = "chart-toolbar";
+function createChartControls(index: number) {
   const range = document.createElement("div");
   range.className = "chart-range";
   const trigger = button("Chart range", "chevron");
@@ -195,12 +196,13 @@ function createToolbar(index: number) {
   trigger.setAttribute("aria-controls", menu.id);
   const rangeText = document.createElement("span");
   trigger.prepend(rangeText);
-  const settings = button("Chart settings", "settings");
+  const settings = button("Settings", "settings");
+  settings.append("Settings");
   const data = button("View chart data", "data");
   settings.setAttribute("aria-haspopup", "dialog");
+  settings.setAttribute("aria-controls", editor.id);
   data.setAttribute("aria-haspopup", "dialog");
   range.append(trigger, menu);
-  toolbar.append(settings);
 
   function refresh() {
     const config = configs[index];
@@ -271,7 +273,7 @@ function createToolbar(index: number) {
   });
   data.addEventListener("click", () => showData(index));
   refresh();
-  return { toolbar, range, data, refresh };
+  return { settings, range, data, refresh };
 }
 
 const charts = presets.map(({ span }, index) => {
@@ -286,14 +288,14 @@ const charts = presets.map(({ span }, index) => {
   settingsButton.setAttribute("aria-haspopup", "dialog");
   settingsButton.setAttribute("aria-controls", preview.id);
   settingsButton.addEventListener("click", () => showPreview(index));
-  const { toolbar, range, data, refresh } = createToolbar(index);
+  const { settings, range, data, refresh } = createChartControls(index);
   const actions = document.createElement("div");
   actions.className = "tile-actions";
   data.setAttribute("aria-controls", dataDialog.id);
   actions.append(data, settingsButton);
   card.append(host, actions);
   gallery.append(card);
-  return { card, host, toolbar, range, refresh, settingsButton, ...mountChart(host, previewConfig(index)) };
+  return { card, host, settings, range, refresh, settingsButton, ...mountChart(host, previewConfig(index)) };
 });
 
 let activeFamily = "all";
@@ -331,7 +333,6 @@ let previewIndex = -1;
 let detail: ReturnType<typeof mountChart> | undefined;
 let detailPlot: HTMLElement | null = null;
 let detailWidth = 0;
-let detailHeight: number | undefined;
 const detailResize = new ResizeObserver(resizeDetail);
 
 function previewConfig(index: number) {
@@ -367,33 +368,23 @@ function saveChartAppearance(index: number) {
 function detailConfig(index: number): ChartConfig {
   const config = previewConfig(index);
   const plotWidth = detailPlot?.clientWidth ?? 0;
-  const card = detailPlot?.closest<HTMLElement>(".viz-card");
-  const heading = card?.querySelector<HTMLElement>(".viz-heading");
-  if (!plotWidth || !card || !heading || config.type === "heatmap") return config;
-  const [referenceWidth, referenceHeight] = presets[index].sourceSize;
-  const cardStyle = getComputedStyle(card);
-  const headingStyle = getComputedStyle(heading);
-  const nonPlotHeight = heading.offsetHeight + [headingStyle.marginBottom, cardStyle.paddingTop, cardStyle.paddingBottom, cardStyle.borderTopWidth, cardStyle.borderBottomWidth]
-    .reduce((height, value) => height + (parseFloat(value) || 0), 0);
-  const desiredHeight = card.offsetWidth * referenceHeight / referenceWidth;
-  const minimumHeight = config.type === "line-column" && config.showVolume !== false ? 128 : 96;
-  const height = Math.max(minimumHeight, Math.round(desiredHeight - nonPlotHeight));
   const original = presets[index].config;
-  if (config.type === "column" && config.labels.length === 1 && config.barWidth === undefined && "series" in original) {
+  if (plotWidth && config.type === "column" && config.labels.length === 1 && config.barWidth === undefined && "series" in original) {
     const barWidth = Math.min(64, Math.max(8, Math.round(plotWidth / original.labels.length)));
-    return { ...config, height, barWidth };
+    return { ...config, barWidth };
   }
-  return { ...config, height };
+  return config;
 }
 
 function resizeDetail() {
+  if (!detail) return;
+  const homeWidth = charts[previewIndex].host.firstElementChild?.getBoundingClientRect().width;
+  if (homeWidth) preview.style.setProperty("--preview-chart-width", `${homeWidth}px`);
+  else preview.style.removeProperty("--preview-chart-width");
   const width = detailPlot?.clientWidth ?? 0;
-  if (!detail || !width) return;
-  const config = detailConfig(previewIndex);
-  if (width === detailWidth && config.height === detailHeight) return;
+  if (!width || width === detailWidth) return;
   detailWidth = width;
-  detailHeight = config.height;
-  detail.update(config);
+  detail.update(detailConfig(previewIndex));
 }
 
 function clearDetail() {
@@ -402,10 +393,13 @@ function clearDetail() {
   detail = undefined;
   detailPlot = null;
   detailWidth = 0;
-  detailHeight = undefined;
 }
 
 function showPreview(index: number) {
+  const opening = !preview.open;
+  const homeCard = charts[index].host.firstElementChild;
+  const origin = opening && !matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? homeCard?.getBoundingClientRect() : undefined;
   closeCurrentMenu?.();
   clearDetail();
   previewIndex = index;
@@ -423,17 +417,27 @@ function showPreview(index: number) {
   syncPreview(index);
   syncPreviewAppearance(index);
   previewRange.replaceChildren(charts[index].range);
-  previewActions.replaceChildren(charts[index].toolbar);
-  previewHost.style.setProperty("--preview-chart-width", `${Math.round(presets[index].sourceSize[0] * 0.7)}px`);
-  const opening = !preview.open;
+  previewActions.replaceChildren(charts[index].settings);
   if (opening) preview.showModal();
+  if (previewActions.parentElement) previewActions.parentElement.scrollTop = 0;
   detail = mountChart(previewHost, previewConfig(index));
   detailPlot = previewHost.querySelector<HTMLElement>(".viz-plot");
   if (detailPlot) detailResize.observe(detailPlot);
-  const heading = previewHost.querySelector<HTMLElement>(".viz-heading");
-  if (heading) detailResize.observe(heading);
+  if (homeCard) detailResize.observe(homeCard);
   resizeDetail();
   if (opening) preview.scrollTop = 0;
+  const card = previewHost.firstElementChild;
+  if (origin?.width && origin.height && card) {
+    const target = card.getBoundingClientRect();
+    card.animate([
+      {
+        transform: `translate(${origin.left - target.left}px, ${origin.top - target.top}px) scale(${origin.width / target.width}, ${origin.height / target.height})`,
+        transformOrigin: "top left",
+        zIndex: 3,
+      },
+      { transform: "none", transformOrigin: "top left", zIndex: 3 },
+    ], { duration: 300, easing: "cubic-bezier(.2, .8, .25, 1)" });
+  }
 }
 
 example.addEventListener("change", () => showPreview(Number(example.value)));
@@ -453,9 +457,7 @@ function drawChart(index: number) {
   const config = previewConfig(index);
   chart.update(config);
   if (previewIndex === index && detail) {
-    const next = detailConfig(index);
-    detailHeight = next.height;
-    detail.update(next);
+    detail.update(detailConfig(index));
     syncPreview(index);
   }
 }
@@ -575,7 +577,9 @@ for (const dialog of [siteSettings, preview, editor, dataDialog]) {
   const close = dialog.querySelector("[data-close]");
   if (!close?.hasChildNodes()) close?.append(icon("close"));
   close?.addEventListener("click", () => dialog.close());
-  dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
+  dialog.addEventListener("click", event => {
+    if (event.target === dialog || (dialog === preview && event.target === preview.firstElementChild)) dialog.close();
+  });
 }
 [title, accent, inheritAccent, font, xAxis, yAxis, grid].forEach(control => control.addEventListener("change", applyControls));
 legendPosition.addEventListener("change", () => {

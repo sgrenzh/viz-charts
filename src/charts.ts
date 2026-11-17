@@ -119,12 +119,46 @@ function format(value: number, axis?: AxisConfig) {
   }).format(value);
 }
 
+function estimateAxisLabelWidth(text: string) {
+  // Estimate glyph widths without requiring a browser or a loaded font.
+  return Array.from(text).reduce((pixels, character) => {
+    const em = character === " " ? 0.35 : character.charCodeAt(0) < 128 ? 0.75 : 1;
+    return pixels + axisLabelSize * em;
+  }, 0);
+}
+
+function xAxisLabels(labels: string[], maxTicks: number, width: number, y: number, center: (index: number) => number) {
+  // Repeated labels can represent sub-day samples. Count each run once for axis spacing.
+  const candidates = labels.flatMap((text, index) => {
+    if (!text || text === labels[index - 1]) return [];
+    const textWidth = Math.min(width, estimateAxisLabelWidth(text));
+    const start = Math.max(0, Math.min(width - textWidth, center(index) - textWidth / 2));
+    return [{ text, start, end: start + textWidth }];
+  });
+
+  const firstStep = Math.max(1, Math.ceil(candidates.length / Math.max(2, maxTicks)));
+  const gap = 8;
+  // Widen the interval for the whole axis when two labels would overlap.
+  for (let step = firstStep; step <= candidates.length; step++) {
+    const ticks: Shape[] = [];
+    let previousEnd = -Infinity;
+    let i = 0;
+    for (; i < candidates.length; i += step) {
+      const { text, start, end } = candidates[i];
+      if (start < previousEnd + gap) break;
+      ticks.push(label((start + end) / 2, y, text, "middle"));
+      previousEnd = end;
+    }
+    if (i >= candidates.length) return ticks;
+  }
+  return [];
+}
+
 function cartesian(config: CartesianConfig, width: number, formatValue: typeof format): Layout {
   const height = config.height ?? 272;
   const showX = config.xAxis?.show !== false;
   const showY = config.yAxis?.show !== false;
   const left = 0;
-  const right = width - (showY ? (width < 420 ? 48 : 72) : 0);
   const top = 12;
   const bottom = height - (showX ? 32 : 12);
   const combo = config.type === "line-column";
@@ -132,8 +166,6 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
   const column = config.type === "column";
   const main = combo ? config.series.slice(0, 1) : config.series;
   const indexes = config.labels.map((_, i) => String(i));
-  const band = scaleBand(indexes, [left, right]).paddingInner(column ? 0.12 : 0.08);
-  const center = (i: number) => (band(String(i)) ?? left) + band.bandwidth() / 2;
   const values = main.flatMap(series => series.values.flatMap(v => v == null ? [] : [v]));
   const stack = column && config.stacked;
   if (stack) {
@@ -151,37 +183,26 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
   const y = scaleLinear([min, max], [lineBottom, top]).clamp(true);
   if (config.yAxis?.min === undefined && config.yAxis?.max === undefined) y.nice(config.yAxis?.ticks ?? 4);
 
-  const shapes: Shape[] = [];
   const ticks = y.ticks(config.yAxis?.ticks ?? 4);
-  ticks.forEach(value => {
+  const tickLabels = showY ? ticks.map(value => formatValue(value, config.yAxis)) : [];
+  const axisTitle = config.yAxis?.label;
+  const labelGap = 8;
+  const minRightPadding = width < 420 ? 48 : 72;
+  const longestLabel = tickLabels.reduce((longest, text) => Math.max(longest, estimateAxisLabelWidth(text)),
+    showY && axisTitle ? estimateAxisLabelWidth(axisTitle) : 0);
+  const rightPadding = showY ? Math.max(minRightPadding, longestLabel + labelGap + 2) : 0;
+  const right = Math.max(left + 1, width - rightPadding);
+  const band = scaleBand(indexes, [left, right]).paddingInner(column ? 0.12 : 0.08);
+  const center = (i: number) => (band(String(i)) ?? left) + band.bandwidth() / 2;
+
+  const shapes: Shape[] = [];
+  ticks.forEach((value, i) => {
     if (config.grid !== false) shapes.push(shape("line", { x1: left, y1: y(value), x2: right, y2: y(value), stroke: rules }));
-    if (showY) shapes.push(label(right + 8, y(value) + 4, formatValue(value, config.yAxis)));
+    if (showY) shapes.push(label(right + labelGap, y(value) + 4, tickLabels[i]));
   });
-  if (showX && indexes.length) {
-    const count = Math.min(indexes.length, Math.max(2, Math.min(config.xAxis?.ticks ?? 12, Math.floor((right - left) / 45))));
-    const candidates = Array.from({ length: count }, (_, tick) => {
-      const index = Math.round(tick * (indexes.length - 1) / Math.max(1, count - 1));
-      const text = config.labels[index];
-      const x = center(index);
-      // Use conservative glyph widths so the SVG layout works without browser font APIs.
-      const textWidth = Math.min(width, Array.from(text).reduce((pixels, character) => pixels + (character.charCodeAt(0) < 128 ? axisLabelSize * 0.75 : axisLabelSize), 0));
-      const start = Math.max(0, Math.min(width - textWidth, x - textWidth / 2));
-      return { text, x: start + textWidth / 2, start, end: start + textWidth };
-    });
-    const gap = 8;
-    const last = candidates.at(-1)!;
-    let previousEnd = -Infinity;
-    let previousText: string | undefined;
-    for (const tick of candidates) {
-      if (!tick.text || tick.text === previousText || tick.start < previousEnd + gap) continue;
-      if (tick !== last && last.text && tick.text !== last.text && tick.end + gap > last.start) continue;
-      shapes.push(label(tick.x, height - 12, tick.text, "middle"));
-      previousEnd = tick.end;
-      previousText = tick.text;
-    }
-  }
+  if (showX) shapes.push(...xAxisLabels(config.labels, config.xAxis?.ticks ?? 12, width, height - 12, center));
   if (showX && config.xAxis?.label) shapes.push(label((left + right) / 2, height - 1, config.xAxis.label, "middle"));
-  if (showY && config.yAxis?.label) shapes.push(label(right + 8, top, config.yAxis.label));
+  if (showY && axisTitle) shapes.push(label(right + labelGap, top, axisTitle));
 
   const getColor = (series: Series, i: number) => series.color ?? (combo && i === 1 ? "#C8C7CB" : i ? tint(50) : color);
   if (column) {
@@ -369,7 +390,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const mark = layout?.marks[index];
     const points = pinned && "series" in config && config.marker !== false ? mark?.points ?? [] : [];
     lineMarkers.replaceChildren(...points.map(point => svgElement("circle", {
-      cx: mark.x, cy: point.y, r: 4, fill: point.color, stroke: "var(--viz-surface)", "stroke-width": 1,
+      cx: mark.x, cy: point.y, r: 5, fill: point.color, stroke: "var(--viz-surface)", "stroke-width": 1,
     })));
     tooltip.hidden = !mark;
     if (!mark) return;
