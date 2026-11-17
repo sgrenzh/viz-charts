@@ -21,7 +21,7 @@
         <h2 id="site-settings-heading">Site settings</h2>
         <button class="icon-button close-button" type="button" data-close aria-label="Close site settings"></button>
       </header>
-      <form id="site-appearance" class="site-settings-options">
+      <div class="site-settings-options">
         <fieldset class="theme-row" aria-label="Site theme">
           <span aria-hidden="true">Theme</span>
           <div class="segmented">
@@ -30,8 +30,7 @@
           </div>
         </fieldset>
         <div class="option-row"><span id="site-palette-label">Color scheme</span><select id="site-palette" aria-labelledby="site-palette-label"><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></div>
-        <div class="actions site-settings-actions"><button id="apply-site-settings" type="submit">Apply to all charts</button></div>
-      </form>
+      </div>
     </dialog>
     <dialog id="preview" class="preview-dialog" aria-labelledby="preview-heading">
       <div class="preview-content" id="preview-content">
@@ -52,10 +51,10 @@
                 <label><input type="radio" name="chart-theme" value="dark"><span>Dark</span></label>
               </div>
             </fieldset>
-            <div class="option-row"><span id="chart-palette-label">Color scheme</span><select id="chart-palette" aria-labelledby="chart-palette-label"><option value="site">Site default</option><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></div>
+            <div class="option-row"><span id="chart-palette-label">Color scheme</span><select id="chart-palette" aria-labelledby="chart-palette-label"><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></div>
             <div class="option-row"><span id="preview-range-label">Date range</span><div id="preview-range"></div></div>
             <div class="option-row" id="legend-position-field" hidden><span id="legend-position-label">List position</span><select id="legend-position" aria-labelledby="legend-position-label"><option value="below">Below</option><option value="right" selected>Right</option><option value="left">Left</option></select></div>
-            <fieldset id="axes" class="preview-plot-options"><legend>Plot options</legend>
+            <fieldset id="axes" class="preview-plot-options" aria-label="Plot options">
               <label class="option-row switch-row">Horizontal axis <input id="axis-x" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label>
               <label class="option-row switch-row">Vertical axis <input id="axis-y" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label>
               <label class="option-row switch-row">Gridlines <input id="grid" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label>
@@ -68,10 +67,10 @@
       </div>
     </dialog>
     <dialog id="editor" aria-labelledby="editor-heading">
-      <header class="dialog-heading"><h2 id="editor-heading">Chart configurator</h2><button class="icon-button" type="button" data-close aria-label="Close chart configurator">✕</button></header>
+      <header class="dialog-heading"><h2 id="editor-heading">Chart code</h2><button class="icon-button" type="button" data-close aria-label="Close chart code">✕</button></header>
       <div class="dialog-content">
-        <p id="chart-name"></p>
-        <label>Configuration <textarea id="config" spellcheck="false" rows="9"></textarea></label>
+        <p id="code-help">This JSON defines the chart’s data and plot options. Edit it and select <strong>Apply JSON</strong> to update the chart, or <strong>Copy JSON</strong> to reuse the configuration in an app that uses Viz Charts.</p>
+        <label>Configuration <textarea id="config" aria-describedby="code-help" spellcheck="false" rows="9"></textarea></label>
         <div class="actions"><button type="button" id="apply">Apply JSON</button><button type="button" id="copy">Copy JSON</button><button type="button" id="reset">Reset</button></div>
         <p id="status" role="status"></p>
       </div>

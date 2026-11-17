@@ -52,8 +52,8 @@
   --viz-page-accent: var(--chart-accent-dark, #dedede);
 }
 .chart-theme[data-chart-palette="blue"] { --chart-accent-light: #4977e1; --chart-accent-dark: #4977e1; }
-.chart-theme[data-chart-palette="orange"] { --chart-accent-light: #bc551d; --chart-accent-dark: #fa995c; }
-.chart-theme[data-chart-palette="green"] { --chart-accent-light: #2d7b54; --chart-accent-dark: #68c996; }
+.chart-theme[data-chart-palette="orange"] { --chart-accent-light: #e95f1c; --chart-accent-dark: #ff8a43; }
+.chart-theme[data-chart-palette="green"] { --chart-accent-light: #009b68; --chart-accent-dark: #39e3a0; }
 .chart-theme > .viz-card { border-radius: 20px; }
 body { margin: 0; background: var(--gallery-background); color: var(--ink); font: var(--viz-type-regular) var(--viz-type-body-size)/var(--viz-type-body-line) var(--viz-type-family); font-optical-sizing: auto; }
 body:has(:is(.preview-dialog, #site-settings, #editor)[open]) { overflow: hidden; }
@@ -166,10 +166,12 @@ button { cursor: pointer; }
 .tile-actions .icon-button {
   width: var(--tile-action-size);
   height: var(--tile-action-size);
+}
+.tile-actions .icon-button, .preview-stage .preview-close {
   background: var(--tile-action-fill);
   color: var(--muted);
 }
-.tile-actions .icon-button:hover { background: var(--tile-action-hover); }
+.tile-actions .icon-button:hover, .preview-stage .preview-close:hover { background: var(--tile-action-hover); }
 :is(.tile-actions, .preview-actions, .close-button, .dropdown, .site-settings-trigger) svg {
   fill: none;
   stroke: currentColor;
@@ -227,7 +229,6 @@ dialog::backdrop { background: #0009; }
 :root[data-theme="dark"] .preview-options { --button: #2e2e2e; --button-hover: #3a3a3a; --switch-active-track: #696969; }
 #site-settings { max-width: 420px; }
 .site-settings-options { padding: 16px 20px 20px; }
-.site-settings-actions { justify-content: flex-end; margin-top: 20px; }
 .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .preview-heading { flex: none; padding: var(--preview-options-padding) var(--preview-options-padding) 12px; }
 .preview-heading h2 { margin: 0; font-size: var(--viz-type-heading-size); font-weight: var(--viz-type-semibold); line-height: var(--viz-type-heading-line); }
@@ -285,28 +286,29 @@ dialog::backdrop { background: #0009; }
 .segmented input:checked + span { background: var(--button-selected); color: var(--ink); }
 .segmented input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 1px; }
 .preview-plot-options { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
-.preview-plot-options legend { padding: 0; margin-block: 4px 8px; font-weight: var(--viz-type-semibold); }
 .switch-row { position: relative; min-block-size: var(--pill-size); cursor: pointer; touch-action: manipulation; }
 .switch-row input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; }
 .switch-track {
+  --switch-inset: 4px;
+  --switch-thumb: calc(var(--pill-size) - 2 * var(--switch-inset));
   position: relative;
   flex: none;
-  inline-size: 44px;
-  block-size: 26px;
+  inline-size: 64px;
+  block-size: var(--pill-size);
   border-radius: 999px;
   background: var(--button);
 }
 .switch-track::before {
   content: "";
   position: absolute;
-  inset-block: 4px;
-  inset-inline-start: 4px;
-  inline-size: 18px;
+  inset-block: var(--switch-inset);
+  inset-inline-start: var(--switch-inset);
+  inline-size: var(--switch-thumb);
   border-radius: 50%;
   background: var(--muted);
 }
 .switch-row input:checked + .switch-track { background: var(--switch-active-track); }
-.switch-row input:checked + .switch-track::before { inset-inline-start: 22px; background: #000; }
+.switch-row input:checked + .switch-track::before { inset-inline-start: calc(100% - var(--switch-thumb) - var(--switch-inset)); background: #000; }
 .switch-row input:focus-visible + .switch-track { outline: 2px solid var(--ink); outline-offset: 2px; }
 .preview-actions {
   position: relative;
@@ -375,7 +377,7 @@ dialog::backdrop { background: #0009; }
 .dialog-content legend, #data-table th { font-weight: var(--viz-type-semibold); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .actions button { padding: 8px 14px; }
-.actions :is(#apply, #apply-site-settings) { background: var(--ink); color: var(--panel); }
+.actions #apply { background: var(--ink); color: var(--panel); }
 #status { margin: 8px 0 0; }
 #status:empty { display: none; }
 #data-table { overflow: auto; }

@@ -69,7 +69,7 @@ function readAppearance(value: unknown): Partial<Appearance> {
 }
 
 const savedSite = readAppearance(readStored(siteAppearanceKey) ?? readStored("viz-gallery-appearance"));
-let siteAppearance: Appearance = {
+const siteAppearance: Appearance = {
   theme: savedSite.theme ?? "system",
   palette: savedSite.palette ?? "monochrome",
 };
@@ -111,6 +111,7 @@ const icons = {
   chevron: '<path d="m6 9 6 6 6-6"/>',
   check: '<path d="m5 12 4 4L19 6"/>',
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
+  code: '<path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 4l-4 16"/>',
   settings: '<path d="M10 3h4l.6 2.6 2 .9 2.3-.9 2 3.4-1.8 1.7v2.6l1.8 1.7-2 3.4-2.3-.9-2 .9L14 21h-4l-.6-2.6-2-.9-2.3.9-2-3.4 1.8-1.7v-2.6L3.1 9l2-3.4 2.3.9 2-.9z"/><circle cx="12" cy="12" r="3"/>',
   sliders: '<path d="M3 6h9m4 0h5M3 12h5m4 0h9M3 18h11m4 0h3M12 4v4M8 10v4m6 2v4"/>',
   data: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M10 9v11"/>',
@@ -294,20 +295,20 @@ function createChartControls(index: number) {
     selectedViews[index] = selected;
     drawChart(index);
   });
-  const settings = button("Settings", "settings");
-  settings.append("Settings");
-  settings.removeAttribute("title");
+  const codeButton = button("Code", "code");
+  codeButton.append("Code");
+  codeButton.removeAttribute("title");
   const data = button("View chart data", "data");
-  settings.setAttribute("aria-haspopup", "dialog");
-  settings.setAttribute("aria-controls", editor.id);
+  codeButton.setAttribute("aria-haspopup", "dialog");
+  codeButton.setAttribute("aria-controls", editor.id);
   data.setAttribute("aria-haspopup", "dialog");
   function refresh() {
     const config = configs[index];
     range.refresh(viewsFor(index).map(view => view.label), selectedViews[index], config.type === "strip" ? "Sort by" : "Date range");
-    settings.setAttribute("aria-label", `Settings for ${config.title}`);
+    codeButton.setAttribute("aria-label", `Code for ${config.title}`);
     data.setAttribute("aria-label", `View data for ${config.title}`);
   }
-  settings.addEventListener("click", () => {
+  codeButton.addEventListener("click", () => {
     if (!preview.open || preview.hasAttribute("data-closing")) return;
     status.textContent = "";
     syncConfigurator();
@@ -318,7 +319,7 @@ function createChartControls(index: number) {
   });
   data.addEventListener("click", () => showData(index));
   refresh();
-  return { settings, range: range.root, data, refresh };
+  return { codeButton, range: range.root, data, refresh };
 }
 
 const charts = presets.map(({ layout }, index) => {
@@ -333,14 +334,14 @@ const charts = presets.map(({ layout }, index) => {
   settingsButton.setAttribute("aria-haspopup", "dialog");
   settingsButton.setAttribute("aria-controls", preview.id);
   settingsButton.addEventListener("click", () => showPreview(index));
-  const { settings, range, data, refresh } = createChartControls(index);
+  const { codeButton, range, data, refresh } = createChartControls(index);
   const actions = document.createElement("div");
   actions.className = "tile-actions";
   data.setAttribute("aria-controls", dataDialog.id);
   actions.append(data, settingsButton);
   card.append(host, actions);
   gallery.append(card);
-  return { card, host, settings, range, refresh, settingsButton, ...mountChart(host, previewConfig(index)) };
+  return { card, host, codeButton, range, refresh, settingsButton, ...mountChart(host, previewConfig(index)) };
 });
 
 let activeFamily = "all";
@@ -429,7 +430,7 @@ function syncPreview(index: number) {
 
 function syncPreviewAppearance(index: number) {
   const appearance = appearances[index];
-  chartPalette.value = appearance.palette ?? "site";
+  chartPalette.value = appearance.palette ?? siteAppearance.palette;
   syncSelectDropdown(chartPalette);
   themeOptions.forEach(option => { option.checked = option.value === (appearance.theme ?? "site"); });
   styleChartAppearance(previewHost, index);
@@ -493,7 +494,7 @@ function showPreview(index: number) {
   syncPreview(index);
   syncPreviewAppearance(index);
   previewRange.replaceChildren(charts[index].range);
-  previewActions.replaceChildren(charts[index].settings);
+  previewActions.replaceChildren(charts[index].codeButton);
   if (opening) preview.showModal();
   previewFields.scrollTop = 0;
   detail = mountChart(previewHost, previewConfig(index));
@@ -612,7 +613,7 @@ editor.addEventListener("close", () => {
   preview.scrollTop = modal;
   previewFields.scrollTop = fields;
   updatePreviewFade();
-  charts[previewIndex].settings.focus({ preventScroll: true });
+  charts[previewIndex].codeButton.focus({ preventScroll: true });
 });
 
 function drawChart(index: number) {
@@ -631,7 +632,6 @@ function drawChart(index: number) {
 
 function syncConfigurator() {
   const config = configs[previewIndex];
-  byId("chart-name").textContent = config.title;
   const { title: _title, period: _period, theme, ...editable } = config;
   const { fontFamily: _fontFamily, ...colors } = theme ?? {};
   source.value = JSON.stringify({ ...editable, ...(Object.keys(colors).length ? { theme: colors } : {}) }, null, 2);
@@ -690,20 +690,29 @@ function useSchemeAccent(index: number) {
   drawChart(index);
 }
 
-byId("site-appearance").addEventListener("submit", event => {
-  event.preventDefault();
-  const theme = chartThemes.find(value => value === siteThemeOptions.find(option => option.checked)?.value);
-  const palette = chartPalettes.find(value => value === sitePalette.value);
-  if (!theme || !palette) return;
-  siteAppearance = { theme, palette };
-  charts.forEach((_, index) => {
-    appearances[index] = {};
-    useSchemeAccent(index);
-  });
+function saveSiteAppearance() {
   applySiteAppearance();
   try { localStorage.setItem(siteAppearanceKey, JSON.stringify(siteAppearance)); } catch { /* Storage may be unavailable. */ }
   storeChartAppearances();
-  siteSettings.close();
+}
+
+siteThemeOptions.forEach(option => option.addEventListener("change", () => {
+  const theme = chartThemes.find(value => value === option.value);
+  if (!option.checked || !theme || theme === siteAppearance.theme) return;
+  siteAppearance.theme = theme;
+  appearances.forEach(appearance => { appearance.theme = undefined; });
+  saveSiteAppearance();
+}));
+
+sitePalette.addEventListener("change", () => {
+  const palette = chartPalettes.find(value => value === sitePalette.value);
+  if (!palette || palette === siteAppearance.palette) return;
+  siteAppearance.palette = palette;
+  appearances.forEach((appearance, index) => {
+    appearance.palette = undefined;
+    useSchemeAccent(index);
+  });
+  saveSiteAppearance();
 });
 
 themeOptions.forEach(option => option.addEventListener("change", () => {
@@ -715,8 +724,8 @@ themeOptions.forEach(option => option.addEventListener("change", () => {
 chartPalette.addEventListener("change", () => {
   const index = previewIndex;
   const palette = chartPalettes.find(value => value === chartPalette.value);
-  if (index < 0 || (!palette && chartPalette.value !== "site")) return;
-  appearances[index].palette = palette;
+  if (index < 0 || !palette) return;
+  appearances[index].palette = palette === siteAppearance.palette ? undefined : palette;
   saveChartAppearance(index);
   useSchemeAccent(index);
 });
