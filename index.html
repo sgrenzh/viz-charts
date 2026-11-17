@@ -29,19 +29,20 @@
             <label><input type="radio" name="site-theme" value="dark"><span>Dark</span></label>
           </div>
         </fieldset>
-        <label class="option-row">Color scheme <span class="select-pill"><select id="site-palette"><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></span></label>
+        <div class="option-row"><span id="site-palette-label">Color scheme</span><select id="site-palette" aria-labelledby="site-palette-label"><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></div>
         <div class="actions site-settings-actions"><button id="apply-site-settings" type="submit">Apply to all charts</button></div>
       </form>
     </dialog>
     <dialog id="preview" class="preview-dialog" aria-labelledby="preview-heading">
       <div class="preview-content">
-        <div class="preview-stage chart-theme" id="preview-chart"></div>
+        <div class="preview-stage" id="preview-stage"><div class="preview-chart chart-theme" id="preview-chart"></div></div>
+        <div class="preview-divider" id="preview-divider" role="separator" tabindex="0" aria-label="Chart preview height" aria-controls="preview-stage" aria-orientation="horizontal" aria-valuemin="25" aria-valuemax="75" aria-valuenow="50"></div>
         <section class="preview-options">
           <header class="preview-heading">
             <h2 id="preview-heading"></h2>
-            <button class="icon-button close-button" type="button" data-close aria-label="Close chart preview"></button>
+            <button class="icon-button close-button" type="button" data-close aria-label="Close chart preview" autofocus></button>
           </header>
-          <label class="option-row" id="example-field" hidden>Example <span class="select-pill"><select id="preview-example"></select></span></label>
+          <div class="option-row" id="example-field" hidden><span id="preview-example-label">Example</span><select id="preview-example" aria-labelledby="preview-example-label"></select></div>
           <fieldset class="theme-row" aria-label="Chart theme">
             <span aria-hidden="true">Theme</span>
             <div class="segmented segmented-chart">
@@ -50,7 +51,7 @@
               <label><input type="radio" name="chart-theme" value="dark"><span>Dark</span></label>
             </div>
           </fieldset>
-          <label class="option-row">Color scheme <span class="select-pill"><select id="chart-palette"><option value="site">Site default</option><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></span></label>
+          <div class="option-row"><span id="chart-palette-label">Color scheme</span><select id="chart-palette" aria-labelledby="chart-palette-label"><option value="site">Site default</option><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></div>
           <div class="option-row"><span id="preview-range-label">Date range</span><div id="preview-range"></div></div>
           <div id="preview-controls" class="preview-actions"></div>
         </section>
@@ -60,13 +61,7 @@
       <header class="dialog-heading"><h2 id="editor-heading">Chart settings</h2><button class="icon-button" type="button" data-close aria-label="Close chart settings">✕</button></header>
       <div class="dialog-content">
         <p id="chart-name"></p>
-        <label>Title <input id="title" type="text"></label>
-        <label>Use selected color scheme <input id="inherit-accent" type="checkbox"></label>
-        <label>Chart accent <input id="accent" type="color"></label>
-        <label>Font family <input id="font" type="text" placeholder="Allo"></label>
-        <label id="legend-position-field" hidden>List position
-          <span class="select-pill"><select id="legend-position"><option value="below">Below</option><option value="right" selected>Right</option><option value="left">Left</option></select></span>
-        </label>
+        <div class="option-row" id="legend-position-field" hidden><span id="legend-position-label">List position</span><select id="legend-position" aria-labelledby="legend-position-label"><option value="below">Below</option><option value="right" selected>Right</option><option value="left">Left</option></select></div>
         <fieldset id="axes"><legend>Plot options</legend>
           <label>Horizontal axis <input id="axis-x" type="checkbox"></label>
           <label>Vertical axis <input id="axis-y" type="checkbox"></label>

@@ -132,9 +132,23 @@ function xAxisLabels(labels: string[], maxTicks: number, width: number, y: numbe
   const candidates = labels.flatMap((text, index) => {
     if (!text || text === labels[index - 1]) return [];
     const textWidth = Math.min(width, estimateAxisLabelWidth(text));
-    const start = Math.max(0, Math.min(width - textWidth, center(index) - textWidth / 2));
-    return [{ text, start, end: start + textWidth }];
+    const x = center(index);
+    const start = Math.max(0, Math.min(width - textWidth, x - textWidth / 2));
+    return [{ text, x, textWidth, start, end: start + textWidth }];
   });
+
+  // Give short category lists one label per category, even when the plot is narrow.
+  if (labels.length <= 6 && candidates.length <= maxTicks) {
+    return candidates.map(({ text, x, textWidth }, i) => {
+      const previous = i ? (candidates[i - 1].x + x) / 2 : 0;
+      const next = i < candidates.length - 1 ? (x + candidates[i + 1].x) / 2 : width;
+      const available = Math.max(1, next - previous - 4);
+      const length = Math.min(available, textWidth);
+      const tick = label(Math.max(previous + length / 2, Math.min(next - length / 2, x)), y, text, "middle");
+      if (available < textWidth) Object.assign(tick.attrs, { textLength: length, lengthAdjust: "spacingAndGlyphs" });
+      return tick;
+    });
+  }
 
   const firstStep = Math.max(1, Math.ceil(candidates.length / Math.max(2, maxTicks)));
   const gap = 8;
@@ -405,9 +419,11 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     tooltip.replaceChildren(title, ...rows);
     const cardBounds = card.getBoundingClientRect();
     const plotBounds = scroller.getBoundingClientRect();
-    const offset = plotBounds.left - cardBounds.left + mark.x - scroller.scrollLeft;
+    const scaleX = cardBounds.width / card.offsetWidth || 1;
+    const scaleY = cardBounds.height / card.offsetHeight || 1;
+    const offset = (plotBounds.left - cardBounds.left) / scaleX + mark.x - scroller.scrollLeft;
     tooltip.style.left = Math.max(12, Math.min(card.clientWidth - tooltip.offsetWidth - 12, offset + 12)) + "px";
-    tooltip.style.top = Math.max(12, plotBounds.top - cardBounds.top + mark.y - tooltip.offsetHeight - 8) + "px";
+    tooltip.style.top = Math.max(12, (plotBounds.top - cardBounds.top) / scaleY + mark.y - tooltip.offsetHeight - 8) + "px";
   }
 
   function draw() {
@@ -528,8 +544,8 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       return segment ? Number(segment.getAttribute("data-strip-index")) : -1;
     }
     const bounds = svg.getBoundingClientRect();
-    const x = event.clientX - bounds.left;
-    const y = event.clientY - bounds.top;
+    const x = (event.clientX - bounds.left) * layout.width / (bounds.width || layout.width);
+    const y = (event.clientY - bounds.top) * layout.height / (bounds.height || layout.height);
     let closest = -1;
     let distance = Infinity;
     layout.marks.forEach((mark, i) => {

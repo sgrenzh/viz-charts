@@ -8,6 +8,8 @@ const siteSettings = byId<HTMLDialogElement>("site-settings");
 const sitePalette = byId<HTMLSelectElement>("site-palette");
 const siteThemeOptions = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="site-theme"]'));
 const preview = byId<HTMLDialogElement>("preview");
+const previewStage = byId("preview-stage");
+const previewDivider = byId("preview-divider");
 const previewHost = byId("preview-chart");
 const previewActions = byId("preview-controls");
 const previewRange = byId("preview-range");
@@ -15,12 +17,8 @@ const exampleField = byId("example-field");
 const example = byId<HTMLSelectElement>("preview-example");
 const editor = byId<HTMLDialogElement>("editor");
 const dataDialog = byId<HTMLDialogElement>("data-dialog");
-const title = byId<HTMLInputElement>("title");
-const accent = byId<HTMLInputElement>("accent");
-const inheritAccent = byId<HTMLInputElement>("inherit-accent");
 const chartPalette = byId<HTMLSelectElement>("chart-palette");
 const themeOptions = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="chart-theme"]'));
-const font = byId<HTMLInputElement>("font");
 const xAxis = byId<HTMLInputElement>("axis-x");
 const yAxis = byId<HTMLInputElement>("axis-y");
 const grid = byId<HTMLInputElement>("grid");
@@ -68,8 +66,8 @@ let siteAppearance: Appearance = {
   palette: savedSite.palette ?? "monochrome",
 };
 const storedCharts = readStored(chartAppearanceKey);
-const appearances = presets.map(({ config }): Partial<Appearance> => {
-  const { theme, palette } = readAppearance(isRecord(storedCharts) ? storedCharts[config.title] : null);
+const appearances = presets.map(({ config, previousTitle }): Partial<Appearance> => {
+  const { theme, palette } = readAppearance(isRecord(storedCharts) ? storedCharts[config.title] ?? storedCharts[previousTitle] : null);
   return { theme: theme === "system" ? undefined : theme, palette };
 });
 
@@ -96,7 +94,7 @@ const viewsByPreset: View[][] = [
   [{ label: "24 hours", count: 1 }, { label: "One week" }],
 ];
 const samplesPerDay = [1, 4, 1, 3, 1, 8, 1, 24, 6];
-const stripViews: View[] = [{ label: "By address count" }, { label: "By category" }];
+const stripViews: View[] = [{ label: "By item count" }, { label: "By category" }];
 const configs = presets.map(({ config }) => structuredClone(config));
 const selectedViews = presets.map(({ config }, index) => config.type === "strip" ? 0 : viewsByPreset[index].length - 1);
 let chosen = 0;
@@ -126,24 +124,127 @@ function button(name: string, iconName: keyof typeof icons) {
   control.append(icon(iconName));
   return control;
 }
-function syncSelectPill(select: HTMLSelectElement) {
-  const label = select.parentElement?.querySelector(".select-pill-label");
-  if (label) label.textContent = select.options[select.selectedIndex]?.textContent ?? "";
+function createDropdown(id: string, onSelect: (index: number) => void) {
+  const root = document.createElement("div");
+  root.className = "dropdown";
+  const trigger = button("", "chevron");
+  trigger.removeAttribute("title");
+  trigger.classList.add("dropdown-trigger");
+  trigger.setAttribute("aria-haspopup", "menu");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.setAttribute("aria-controls", id);
+  const text = document.createElement("span");
+  trigger.prepend(text);
+  const menu = document.createElement("div");
+  menu.className = "dropdown-menu";
+  menu.id = id;
+  menu.setAttribute("popover", "manual");
+  menu.setAttribute("role", "menu");
+  menu.hidden = true;
+  root.append(trigger, menu);
+
+  let labels: string[] = [];
+  let selected = 0;
+  function refresh(options: string[], index: number, label: string) {
+    labels = options;
+    selected = index;
+    text.textContent = labels[selected] ?? "";
+    trigger.setAttribute("aria-label", `${label}: ${text.textContent}`);
+    menu.setAttribute("aria-label", label);
+  }
+
+  function place() {
+    if (menu.hidden) return;
+    const bounds = trigger.getBoundingClientRect();
+    menu.style.minWidth = `${Math.min(bounds.width, window.innerWidth - 16)}px`;
+    const active = menu.children[selected] as HTMLElement | undefined;
+    const top = bounds.top + (bounds.height - (active?.offsetHeight ?? 0)) / 2 - (active?.offsetTop ?? 0);
+    menu.style.left = `${Math.max(8, Math.min(window.innerWidth - menu.offsetWidth - 8, bounds.right - menu.offsetWidth))}px`;
+    menu.style.top = `${Math.max(8, Math.min(window.innerHeight - menu.offsetHeight - 8, top))}px`;
+  }
+  function close(restoreFocus = false) {
+    if (menu.hidden) return;
+    menu.hidePopover?.();
+    menu.hidden = true;
+    trigger.setAttribute("aria-expanded", "false");
+    window.removeEventListener("resize", place);
+    document.removeEventListener("scroll", place, true);
+    if (closeCurrentMenu === close) closeCurrentMenu = undefined;
+    if (restoreFocus) trigger.focus({ preventScroll: true });
+  }
+  function open() {
+    if (!labels.length) return;
+    closeCurrentMenu?.();
+    menu.replaceChildren(...labels.map((label, index) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.tabIndex = -1;
+      item.setAttribute("role", "menuitemradio");
+      item.setAttribute("aria-checked", String(index === selected));
+      item.textContent = label;
+      if (index === selected) item.append(icon("check"));
+      item.addEventListener("click", () => {
+        close(true);
+        onSelect(index);
+      });
+      return item;
+    }));
+    menu.hidden = false;
+    menu.showPopover?.();
+    trigger.setAttribute("aria-expanded", "true");
+    closeCurrentMenu = close;
+    place();
+    (menu.children[selected] as HTMLElement | undefined)?.focus();
+    window.addEventListener("resize", place);
+    document.addEventListener("scroll", place, true);
+  }
+  trigger.addEventListener("click", () => { if (menu.hidden) open(); else close(); });
+  trigger.addEventListener("keydown", event => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (menu.hidden) open();
+    }
+  });
+  menu.addEventListener("keydown", event => {
+    if (event.key === "Escape" || event.key === "Tab") {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); }
+      close(true);
+      return;
+    }
+    const items = Array.from(menu.querySelectorAll("button"));
+    const index = items.indexOf(document.activeElement as HTMLButtonElement);
+    const length = items.length;
+    const next = event.key === "Home" ? 0 : event.key === "End" ? length - 1
+      : event.key === "ArrowDown" ? (index + 1) % length : event.key === "ArrowUp" ? (index - 1 + length) % length : -1;
+    if (next >= 0) { event.preventDefault(); items[next].focus(); }
+  });
+  document.addEventListener("pointerdown", event => {
+    if (!menu.hidden && !root.contains(event.target as Node)) close();
+  });
+  return { root, refresh };
 }
 
-document.querySelectorAll<HTMLSelectElement>(".select-pill select").forEach(select => {
-  const label = document.createElement("span");
-  label.className = "select-pill-label";
-  label.setAttribute("aria-hidden", "true");
-  select.after(label, icon("chevron"));
-  syncSelectPill(select);
-  select.addEventListener("change", () => syncSelectPill(select));
-});
+const selectDropdowns = new Map<HTMLSelectElement, ReturnType<typeof createDropdown>>();
+function syncSelectDropdown(select: HTMLSelectElement) {
+  const label = document.getElementById(select.getAttribute("aria-labelledby") ?? "")?.textContent ?? "";
+  selectDropdowns.get(select)?.refresh(Array.from(select.options, option => option.textContent), select.selectedIndex, label);
+}
+for (const select of [sitePalette, example, chartPalette, legendPosition]) {
+  const dropdown = createDropdown(`${select.id}-menu`, index => {
+    select.selectedIndex = index;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  selectDropdowns.set(select, dropdown);
+  select.hidden = true;
+  select.after(dropdown.root);
+  syncSelectDropdown(select);
+  select.addEventListener("change", () => syncSelectDropdown(select));
+}
 const siteSettingsButton = byId("open-site-settings");
 siteSettingsButton.append(icon("settings"));
 siteSettingsButton.addEventListener("click", () => {
   sitePalette.value = siteAppearance.palette;
-  syncSelectPill(sitePalette);
+  syncSelectDropdown(sitePalette);
   const theme = isDark(siteAppearance.theme) ? "dark" : "light";
   siteThemeOptions.forEach(option => { option.checked = option.value === theme; });
   siteSettings.showModal();
@@ -182,89 +283,23 @@ function viewConfig(index: number): ChartConfig {
 }
 
 function createChartControls(index: number) {
-  const range = document.createElement("div");
-  range.className = "chart-range";
-  const trigger = button("Chart range", "chevron");
-  trigger.classList.add("range-trigger");
-  trigger.setAttribute("aria-haspopup", "menu");
-  trigger.setAttribute("aria-expanded", "false");
-  const menu = document.createElement("div");
-  menu.className = "range-menu";
-  menu.id = `chart-range-${index}`;
-  menu.setAttribute("role", "menu");
-  menu.hidden = true;
-  trigger.setAttribute("aria-controls", menu.id);
-  const rangeText = document.createElement("span");
-  trigger.prepend(rangeText);
+  const range = createDropdown(`chart-range-${index}`, selected => {
+    selectedViews[index] = selected;
+    drawChart(index);
+  });
   const settings = button("Settings", "settings");
   settings.append("Settings");
+  settings.removeAttribute("title");
   const data = button("View chart data", "data");
   settings.setAttribute("aria-haspopup", "dialog");
   settings.setAttribute("aria-controls", editor.id);
   data.setAttribute("aria-haspopup", "dialog");
-  range.append(trigger, menu);
-
   function refresh() {
     const config = configs[index];
-    const current = viewsFor(index)[selectedViews[index]];
-    rangeText.textContent = current.label;
-    trigger.setAttribute("aria-label", `${config.title}: ${current.label}`);
+    range.refresh(viewsFor(index).map(view => view.label), selectedViews[index], config.type === "strip" ? "Sort by" : "Date range");
     settings.setAttribute("aria-label", `Settings for ${config.title}`);
     data.setAttribute("aria-label", `View data for ${config.title}`);
-    menu.setAttribute("aria-label", config.type === "strip" ? "Sort categories" : "Date range");
   }
-  function close(restoreFocus = false) {
-    menu.hidden = true;
-    trigger.setAttribute("aria-expanded", "false");
-    if (closeCurrentMenu === close) closeCurrentMenu = undefined;
-    if (restoreFocus) trigger.focus();
-  }
-  function open() {
-    closeCurrentMenu?.();
-    const active = selectedViews[index];
-    const options = viewsFor(index);
-    menu.style.setProperty("--active-row", String(active));
-    menu.replaceChildren(...options.map((view, i) => {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.setAttribute("role", "menuitemradio");
-      item.setAttribute("aria-checked", String(i === active));
-      item.textContent = view.label;
-      if (i === active) item.append(icon("check"));
-      item.addEventListener("click", () => {
-        selectedViews[index] = i;
-        close();
-        drawChart(index);
-        trigger.focus();
-      });
-      return item;
-    }));
-    menu.hidden = false;
-    trigger.setAttribute("aria-expanded", "true");
-    closeCurrentMenu = close;
-    (menu.children[active] as HTMLElement).focus({ preventScroll: true });
-    menu.scrollIntoView({ block: "nearest" });
-  }
-  trigger.addEventListener("click", () => { if (menu.hidden) open(); else close(); });
-  trigger.addEventListener("keydown", event => {
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      if (menu.hidden) open();
-    }
-  });
-  menu.addEventListener("keydown", event => {
-    if (event.key === "Escape") { event.preventDefault(); close(true); return; }
-    if (event.key === "Tab") { close(); return; }
-    const items = Array.from(menu.querySelectorAll("button"));
-    const index = items.indexOf(document.activeElement as HTMLButtonElement);
-    const length = items.length;
-    const next = event.key === "Home" ? 0 : event.key === "End" ? length - 1
-      : event.key === "ArrowDown" ? (index + 1) % length : event.key === "ArrowUp" ? (index - 1 + length) % length : -1;
-    if (next >= 0) { event.preventDefault(); items[next].focus(); }
-  });
-  document.addEventListener("click", event => {
-    if (!menu.hidden && !range.contains(event.target as Node)) close();
-  });
   settings.addEventListener("click", () => {
     chosen = index;
     status.textContent = "";
@@ -273,13 +308,13 @@ function createChartControls(index: number) {
   });
   data.addEventListener("click", () => showData(index));
   refresh();
-  return { settings, range, data, refresh };
+  return { settings, range: range.root, data, refresh };
 }
 
-const charts = presets.map(({ span }, index) => {
+const charts = presets.map(({ layout }, index) => {
   const card = document.createElement("div");
   card.className = "gallery-tile";
-  card.style.setProperty("--span", String(span));
+  if (layout) card.dataset.layout = layout;
   const host = document.createElement("div");
   host.className = "chart-theme";
   styleChartAppearance(host, index);
@@ -311,6 +346,7 @@ const filters = Object.entries({ all: "All", ...familyLabels }).map(([family, la
   pill.addEventListener("click", () => {
     if (family === activeFamily) return;
     activeFamily = family;
+    gallery.classList.toggle("is-filtered", family !== "all");
     for (const filter of filters) filter.pill.setAttribute("aria-pressed", String(filter.family === activeFamily));
     charts.forEach((chart, i) => { chart.card.hidden = activeFamily !== "all" && chartFamily(configs[i]) !== activeFamily; });
   });
@@ -334,6 +370,49 @@ let detail: ReturnType<typeof mountChart> | undefined;
 let detailPlot: HTMLElement | null = null;
 let detailWidth = 0;
 const detailResize = new ResizeObserver(resizeDetail);
+const mobilePreview = matchMedia("(max-width: 660px)");
+let split = 50;
+let resizePointer: { id: number; y: number; split: number } | undefined;
+
+function setPreviewSplit(value: number) {
+  split = Math.max(25, Math.min(75, value));
+  preview.style.setProperty("--preview-top", `${split}fr`);
+  preview.style.setProperty("--preview-bottom", `${100 - split}fr`);
+  const percent = Math.round(split);
+  previewDivider.setAttribute("aria-valuenow", String(percent));
+  previewDivider.setAttribute("aria-valuetext", `${percent}% chart preview`);
+  fitPreviewChart();
+}
+
+previewDivider.addEventListener("pointerdown", event => {
+  if (!event.isPrimary || event.button !== 0) return;
+  resizePointer = { id: event.pointerId, y: event.clientY, split };
+  previewDivider.setPointerCapture(event.pointerId);
+  previewDivider.dataset.resizing = "";
+});
+previewDivider.addEventListener("pointermove", event => {
+  if (resizePointer?.id !== event.pointerId) return;
+  const height = (previewStage.parentElement?.clientHeight ?? 0) - previewDivider.offsetHeight;
+  if (height > 0) setPreviewSplit(resizePointer.split + (event.clientY - resizePointer.y) * 100 / height);
+});
+previewDivider.addEventListener("lostpointercapture", () => {
+  resizePointer = undefined;
+  delete previewDivider.dataset.resizing;
+});
+previewDivider.addEventListener("keydown", event => {
+  const value = { ArrowUp: split - 5, ArrowDown: split + 5, Home: 25, End: 75 }[event.key];
+  if (value === undefined) return;
+  event.preventDefault();
+  setPreviewSplit(value);
+});
+
+function fitPreviewChart() {
+  const height = previewHost.offsetHeight;
+  const available = previewStage.clientHeight - 16;
+  const scale = mobilePreview.matches && height && available > 0 ? Math.min(1, available / height) : 1;
+  previewHost.style.setProperty("--preview-scale", String(scale));
+  return scale;
+}
 
 function previewConfig(index: number) {
   return { ...viewConfig(index), period: undefined };
@@ -343,13 +422,13 @@ function syncPreview(index: number) {
   byId("preview-heading").textContent = configs[index].title;
   byId("preview-range-label").textContent = configs[index].type === "strip" ? "Sort by" : "Date range";
   example.options[example.selectedIndex].textContent = configs[index].title;
-  syncSelectPill(example);
+  syncSelectDropdown(example);
 }
 
 function syncPreviewAppearance(index: number) {
   const appearance = appearances[index];
   chartPalette.value = appearance.palette ?? "site";
-  syncSelectPill(chartPalette);
+  syncSelectDropdown(chartPalette);
   themeOptions.forEach(option => { option.checked = option.value === (appearance.theme ?? "site"); });
   styleChartAppearance(previewHost, index);
 }
@@ -382,9 +461,11 @@ function resizeDetail() {
   if (homeWidth) preview.style.setProperty("--preview-chart-width", `${homeWidth}px`);
   else preview.style.removeProperty("--preview-chart-width");
   const width = detailPlot?.clientWidth ?? 0;
-  if (!width || width === detailWidth) return;
-  detailWidth = width;
-  detail.update(detailConfig(previewIndex));
+  if (width && width !== detailWidth) {
+    detailWidth = width;
+    detail.update(detailConfig(previewIndex));
+  }
+  fitPreviewChart();
 }
 
 function clearDetail() {
@@ -398,8 +479,9 @@ function clearDetail() {
 function showPreview(index: number) {
   const opening = !preview.open;
   const homeCard = charts[index].host.firstElementChild;
-  const origin = opening && !matchMedia("(prefers-reduced-motion: reduce)").matches
-    ? homeCard?.getBoundingClientRect() : undefined;
+  const animate = opening && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const origin = animate ? homeCard?.getBoundingClientRect() : undefined;
+  const originTile = animate ? charts[index].card.getBoundingClientRect() : undefined;
   closeCurrentMenu?.();
   clearDetail();
   previewIndex = index;
@@ -418,26 +500,46 @@ function showPreview(index: number) {
   syncPreviewAppearance(index);
   previewRange.replaceChildren(charts[index].range);
   previewActions.replaceChildren(charts[index].settings);
-  if (opening) preview.showModal();
+  if (opening) {
+    preview.showModal();
+    setPreviewSplit(50);
+  }
   if (previewActions.parentElement) previewActions.parentElement.scrollTop = 0;
   detail = mountChart(previewHost, previewConfig(index));
   detailPlot = previewHost.querySelector<HTMLElement>(".viz-plot");
   if (detailPlot) detailResize.observe(detailPlot);
   if (homeCard) detailResize.observe(homeCard);
+  detailResize.observe(previewStage);
+  detailResize.observe(previewHost);
   resizeDetail();
   if (opening) preview.scrollTop = 0;
   const card = previewHost.firstElementChild;
-  if (origin?.width && origin.height && card) {
-    const target = card.getBoundingClientRect();
-    card.animate([
-      {
-        transform: `translate(${origin.left - target.left}px, ${origin.top - target.top}px) scale(${origin.width / target.width}, ${origin.height / target.height})`,
-        transformOrigin: "top left",
-        zIndex: 3,
-      },
-      { transform: "none", transformOrigin: "top left", zIndex: 3 },
-    ], { duration: 300, easing: "cubic-bezier(.2, .8, .25, 1)" });
+  if (origin?.width && origin.height && originTile?.width && originTile.height && card) {
+    animatePreview(originTile, origin, card);
   }
+}
+
+function animatePreview(originTile: DOMRect, originChart: DOMRect, card: Element) {
+  const scale = fitPreviewChart();
+  const stage = previewStage.getBoundingClientRect();
+  const chart = card.getBoundingClientRect();
+  if (!stage.width || !stage.height || !chart.width || !chart.height) return;
+  const sx = originTile.width / stage.width;
+  const sy = originTile.height / stage.height;
+  const stageTransform = `translate(${originTile.left - stage.left}px, ${originTile.top - stage.top}px) scale(${sx}, ${sy})`;
+  // Undo the parent's transform when calculating the chart's own starting position.
+  const x = ((originChart.left - originTile.left) / sx - (chart.left - stage.left)) / scale;
+  const y = ((originChart.top - originTile.top) / sy - (chart.top - stage.top)) / scale;
+  const chartTransform = `translate(${x}px, ${y}px) scale(${originChart.width / (chart.width * sx)}, ${originChart.height / (chart.height * sy)})`;
+  const timing = { duration: 400, easing: "cubic-bezier(.2, .8, .25, 1)" };
+  previewStage.animate([
+    { transform: stageTransform, transformOrigin: "top left", zIndex: 4 },
+    { transform: "none", transformOrigin: "top left", zIndex: 4 },
+  ], timing);
+  card.animate([
+    { transform: chartTransform, transformOrigin: "top left" },
+    { transform: "none", transformOrigin: "top left" },
+  ], timing);
 }
 
 example.addEventListener("change", () => showPreview(Number(example.value)));
@@ -465,13 +567,6 @@ function drawChart(index: number) {
 function sync() {
   const config = configs[chosen];
   byId("chart-name").textContent = config.title;
-  title.value = config.title;
-  const ownAccent = config.theme?.accent;
-  inheritAccent.checked = ownAccent === undefined;
-  accent.disabled = inheritAccent.checked;
-  const schemeAccent = getComputedStyle(charts[chosen].host).getPropertyValue("--viz-page-accent").trim();
-  accent.value = /^#[0-9a-f]{6}$/i.test(ownAccent ?? "") ? ownAccent! : schemeAccent || "#343434";
-  font.value = config.theme?.fontFamily ?? "";
   const hasAxes = "series" in config;
   byId("axes").hidden = !hasAxes;
   xAxis.checked = hasAxes && config.xAxis?.show !== false;
@@ -479,10 +574,12 @@ function sync() {
   grid.checked = hasAxes && config.grid !== false;
   byId("legend-position-field").hidden = config.type !== "strip";
   legendPosition.value = config.type === "strip" ? config.legendPosition ?? "right" : "right";
-  syncSelectPill(legendPosition);
+  syncSelectDropdown(legendPosition);
   byId("show-volume-field").hidden = config.type !== "line-column";
   showVolume.checked = config.type === "line-column" && config.showVolume !== false;
-  source.value = JSON.stringify(config, null, 2);
+  const { title: _title, period: _period, theme, ...editable } = config;
+  const { fontFamily: _fontFamily, ...colors } = theme ?? {};
+  source.value = JSON.stringify({ ...editable, ...(Object.keys(colors).length ? { theme: colors } : {}) }, null, 2);
 }
 
 function update(config: ChartConfig) {
@@ -494,16 +591,10 @@ function update(config: ChartConfig) {
 }
 
 function applyControls() {
-  let config = configs[chosen];
-  config = {
-    ...config,
-    title: title.value.trim() || presets[chosen].config.title,
-    theme: { ...config.theme, accent: inheritAccent.checked ? undefined : accent.value, fontFamily: font.value.trim() || undefined },
-  };
+  const config = configs[chosen];
   if ("series" in config) {
-    config = { ...config, grid: grid.checked, xAxis: { ...config.xAxis, show: xAxis.checked }, yAxis: { ...config.yAxis, show: yAxis.checked } };
+    update({ ...config, grid: grid.checked, xAxis: { ...config.xAxis, show: xAxis.checked }, yAxis: { ...config.yAxis, show: yAxis.checked } });
   }
-  update(config);
 }
 
 function showData(index: number) {
@@ -576,12 +667,13 @@ chartPalette.addEventListener("change", () => {
 for (const dialog of [siteSettings, preview, editor, dataDialog]) {
   const close = dialog.querySelector("[data-close]");
   if (!close?.hasChildNodes()) close?.append(icon("close"));
-  close?.addEventListener("click", () => dialog.close());
+  close?.addEventListener("click", () => { closeCurrentMenu?.(); dialog.close(); });
+  dialog.addEventListener("close", () => { if (!dialog.open) closeCurrentMenu?.(); });
   dialog.addEventListener("click", event => {
     if (event.target === dialog || (dialog === preview && event.target === preview.firstElementChild)) dialog.close();
   });
 }
-[title, accent, inheritAccent, font, xAxis, yAxis, grid].forEach(control => control.addEventListener("change", applyControls));
+[xAxis, yAxis, grid].forEach(control => control.addEventListener("change", applyControls));
 legendPosition.addEventListener("change", () => {
   const config = configs[chosen];
   if (config.type === "strip") update({ ...config, legendPosition: legendPosition.value as LegendPosition });
@@ -608,7 +700,16 @@ function validAxis(axis: unknown) {
 }
 
 function readConfig(text: string): ChartConfig {
-  const parsed: unknown = JSON.parse(text);
+  const input: unknown = JSON.parse(text);
+  if (!isRecord(input)) throw new Error("Enter a version 1 chart configuration.");
+  const current = configs[chosen];
+  const parsed = {
+    ...input,
+    title: current.title,
+    period: current.period,
+    theme: isRecord(input.theme) || input.theme === undefined
+      ? { ...input.theme, fontFamily: current.theme?.fontFamily } : input.theme,
+  } as Record<string, unknown>;
   if (!isRecord(parsed) || parsed.version !== 1 || typeof parsed.title !== "string" || !parsed.title.trim()
     || !within(parsed.height, 96, 720) || !optionalText(parsed.period) || !optionalText(parsed.headline)
     || (parsed.theme !== undefined && (!isRecord(parsed.theme) || !Object.values(parsed.theme).every(optionalText)))) {
@@ -660,7 +761,7 @@ byId("apply").addEventListener("click", () => {
 });
 byId("copy").addEventListener("click", async () => {
   try {
-    await navigator.clipboard.writeText(source.value);
+    await navigator.clipboard.writeText(JSON.stringify(readConfig(source.value), null, 2));
     status.textContent = "Configuration copied.";
   } catch {
     source.focus();
@@ -669,8 +770,8 @@ byId("copy").addEventListener("click", async () => {
   }
 });
 byId("reset").addEventListener("click", () => {
-  appearances[chosen] = {};
-  saveChartAppearance(chosen);
-  update(structuredClone(presets[chosen].config));
+  const current = configs[chosen];
+  const preset = structuredClone(presets[chosen].config);
+  update({ ...preset, title: current.title, theme: { ...preset.theme, fontFamily: current.theme?.fontFamily } });
   status.textContent = "Preset restored.";
 });
