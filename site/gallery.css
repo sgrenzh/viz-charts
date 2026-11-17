@@ -17,7 +17,6 @@
   --button-hover: #e2e2e2;
   --button-selected: #fff;
   --border: #d7d7d7;
-  --control-outline: #767676;
   --pill-size: 40px;
   --pill-cap: calc(var(--pill-size) / 2);
   --pill-icon-gap: 6px;
@@ -37,7 +36,6 @@
   --button-hover: #303030;
   --button-selected: #414141;
   --border: #3b3b3b;
-  --control-outline: #898989;
 }
 .chart-theme {
   color-scheme: light;
@@ -121,7 +119,6 @@ button { transition: background-color 160ms ease, color 160ms ease, transform 18
   border: 0;
   border-radius: 999px;
   background: var(--button);
-  box-shadow: inset 0 0 0 1px var(--control-outline);
   color: var(--ink);
   white-space: nowrap;
 }
@@ -257,7 +254,6 @@ dialog::backdrop { background: #0009; }
   border-radius: 999px;
   background: var(--button);
   color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--control-outline);
 }
 .icon-button {
   display: inline-flex;
@@ -302,7 +298,6 @@ dialog::backdrop { background: #0009; }
   transform: translateX(var(--indicator-x));
   border-radius: 999px;
   background: var(--button-selected);
-  box-shadow: inset 0 0 0 1px var(--control-outline);
   pointer-events: none;
   transition: transform 150ms ease-out, width 150ms ease-out;
 }
@@ -310,8 +305,8 @@ dialog::backdrop { background: #0009; }
 .segmented input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
 .segmented span { display: flex; align-items: center; block-size: 100%; padding-inline: 17px; border-radius: 999px; white-space: nowrap; transition: background-color 160ms ease, color 160ms ease; }
 @media (hover: hover) { .segmented label:hover span { background: var(--button-hover); color: var(--ink); } }
-.segmented input:checked + span { background: var(--button-selected); color: var(--ink); box-shadow: inset 0 0 0 1px var(--control-outline); }
-.segmented[data-indicator] input:checked + span { background: transparent; box-shadow: none; }
+.segmented input:checked + span { background: var(--button-selected); color: var(--ink); }
+.segmented[data-indicator] input:checked + span { background: transparent; }
 .segmented input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 1px; }
 @media (prefers-reduced-motion: reduce) {
   .segmented[data-indicator]::before, .segmented span { transition: none; }
@@ -422,7 +417,20 @@ dialog::backdrop { background: #0009; }
 @media (max-width: 360px) { .segmented { font-size: var(--viz-type-label-size); } }
 @media (max-width: 440px) { .segmented-chart label:not(:first-child, :last-child) span { padding-inline: 8px; } }
 
-.chart-toolbar .dropdown-trigger { background: var(--button); color: var(--ink); }
+.chart-toolbar .dropdown-trigger {
+  height: 40px;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--viz-grid);
+  border-radius: 8px;
+  background: var(--viz-surface);
+  box-shadow: none;
+  color: var(--viz-ink);
+  font-size: var(--viz-type-label-size);
+  line-height: var(--viz-type-label-line);
+}
+.chart-toolbar .dropdown-trigger:hover { background: var(--viz-surface); }
+.chart-toolbar .dropdown-trigger svg { color: var(--viz-muted); }
 .chart-theme .dropdown-trigger:focus-visible { outline-color: var(--viz-page-ink); }
 .preview-actions .icon-button svg { stroke-width: 1.5; }
 
