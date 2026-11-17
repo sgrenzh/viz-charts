@@ -109,7 +109,7 @@ const icons = {
   chevron: '<path d="m6 9 6 6 6-6"/>',
   check: '<path d="m5 12 4 4L19 6"/>',
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
-  code: '<path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 4l-4 16"/>',
+  code: '<path d="M13.5 6 10 18.5M6.5 8.5 3 12l3.5 3.5M17.5 8.5 21 12l-3.5 3.5" stroke-width="1.5"/>',
   settings: '<path d="M10 3h4l.6 2.6 2 .9 2.3-.9 2 3.4-1.8 1.7v2.6l1.8 1.7-2 3.4-2.3-.9-2 .9L14 21h-4l-.6-2.6-2-.9-2.3.9-2-3.4 1.8-1.7v-2.6L3.1 9l2-3.4 2.3.9 2-.9z"/><circle cx="12" cy="12" r="3"/>',
   sliders: '<path d="M3 6h9m4 0h5M3 12h5m4 0h9M3 18h11m4 0h3M12 4v4M8 10v4m6 2v4"/>',
   data: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M10 9v11"/>',
@@ -314,6 +314,16 @@ function createChartControls(index: number) {
     selectedViews[index] = selected;
     drawChart(index);
   });
+  const homeRange = createDropdown(`home-range-${index}`, selected => {
+    selectedViews[index] = selected;
+    drawChart(index);
+  });
+  const detailRange = createDropdown(`detail-range-${index}`, selected => {
+    selectedViews[index] = selected;
+    drawChart(index);
+  });
+  homeRange.root.classList.add("chart-toolbar");
+  detailRange.root.classList.add("chart-toolbar");
   const codeButton = button("Code", "code");
   codeButton.append("Code");
   codeButton.removeAttribute("title");
@@ -321,7 +331,11 @@ function createChartControls(index: number) {
   codeButton.setAttribute("aria-controls", editor.id);
   function refresh() {
     const config = configs[index];
-    range.refresh(viewsFor(index).map(view => view.label), selectedViews[index], config.type === "strip" ? "Sort by" : "Date range");
+    const labels = viewsFor(index).map(view => view.label);
+    range.refresh(labels, selectedViews[index], config.type === "strip" ? "Sort by" : "Date range");
+    homeRange.refresh(labels, selectedViews[index], "Date range");
+    detailRange.refresh(labels, selectedViews[index], "Date range");
+    homeRange.root.hidden = detailRange.root.hidden = config.type === "strip";
     codeButton.setAttribute("aria-label", `Code for ${config.title}`);
   }
   codeButton.addEventListener("click", () => {
@@ -334,7 +348,7 @@ function createChartControls(index: number) {
     editor.showModal();
   });
   refresh();
-  return { codeButton, range: range.root, refresh };
+  return { codeButton, range: range.root, homeRange: homeRange.root, detailRange: detailRange.root, refresh };
 }
 
 const charts = presets.map(({ layout, formatHeadline }, index) => {
@@ -353,13 +367,13 @@ const charts = presets.map(({ layout, formatHeadline }, index) => {
     const target = event.target as Node;
     if (!host.contains(target) && !settingsButton.contains(target)) showPreview(index);
   });
-  const { codeButton, range, refresh } = createChartControls(index);
+  const { codeButton, range, homeRange, detailRange, refresh } = createChartControls(index);
   const actions = document.createElement("div");
   actions.className = "tile-actions";
   actions.append(settingsButton);
   card.append(host, actions);
   gallery.append(card);
-  return { card, host, codeButton, range, refresh, settingsButton, ...mountChart(host, previewConfig(index), { formatHeadline }) };
+  return { card, host, codeButton, range, homeRange, detailRange, refresh, settingsButton, ...mountChart(host, previewConfig(index), { formatHeadline, controls: homeRange }) };
 });
 
 let activeFamily = "all";
@@ -447,7 +461,8 @@ function onSegmentChange(on: HTMLInputElement, listener: () => void) {
 function syncPreview(index: number) {
   const config = configs[index];
   byId("preview-heading").textContent = chartTypeLabels[chartFamily(config)];
-  byId("preview-range-label").textContent = config.type === "strip" ? "Sort by" : "Date range";
+  byId("preview-range-label").textContent = "Sort by";
+  byId("preview-range").parentElement!.hidden = config.type !== "strip";
   const hasAxes = "series" in config;
   byId("axes").hidden = !hasAxes;
   selectSegment(xAxis, hasAxes && config.xAxis?.show !== false);
@@ -535,7 +550,7 @@ function showPreview(index: number) {
   previewActions.replaceChildren(charts[index].codeButton);
   if (opening) preview.showModal();
   previewFields.scrollTop = 0;
-  detail = mountChart(previewHost, previewConfig(index), { formatHeadline: presets[index].formatHeadline });
+  detail = mountChart(previewHost, previewConfig(index), { formatHeadline: presets[index].formatHeadline, controls: charts[index].detailRange });
   detailPlot = previewHost.querySelector<HTMLElement>(".viz-plot");
   if (detailPlot) detailResize.observe(detailPlot);
   if (homeCard) detailResize.observe(homeCard);
@@ -570,7 +585,7 @@ function animatePreview(originTile: DOMRect, originChart: DOMRect, card: Element
   const transforms = previewTransforms(originTile, originChart, card);
   if (!transforms) return;
   const { stageTransform, chartTransform } = transforms;
-  const timing = { duration: previewDuration, easing: "cubic-bezier(.2, .8, .25, 1)" };
+  const timing = { duration: previewDuration, easing: "cubic-bezier(.4, 0, .2, 1)" };
   previewAnimations = [
     previewStage.animate([
       { transform: stageTransform, transformOrigin: "top left", zIndex: 4 },
@@ -609,7 +624,7 @@ function closePreview() {
 
   preview.setAttribute("data-closing", "");
   previewContent.inert = true;
-  const timing = { duration: previewDuration, easing: "cubic-bezier(.75, 0, .8, .2)", fill: "forwards" } as const;
+  const timing = { duration: previewDuration, easing: "cubic-bezier(.4, 0, .2, 1)", fill: "forwards" } as const;
   const animations = [
     previewStage.animate([
       { transform: stageStart, transformOrigin: "top left", zIndex: 4 },

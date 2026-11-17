@@ -81,7 +81,7 @@
 .viz-series { display: flex; flex-wrap: wrap; gap: 12px; grid-column: 1 / -1; }
 .viz-series span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 4px; border-radius: 50%; background: var(--series-color); }
 .viz-legend { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-content: start; column-gap: 8px; }
-.viz-legend button { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; width: 100%; border: 0; border-radius: 4px; background: none; color: var(--viz-muted); text-align: left; padding: 4px; font-family: inherit; font-weight: inherit; cursor: pointer; }
+.viz-legend button { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; width: 100%; border: 0; border-radius: 4px; background: none; color: var(--viz-muted); text-align: left; padding: 4px; font-family: inherit; font-weight: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .viz-legend button span:first-child { overflow-wrap: anywhere; }
 .viz-legend button span:nth-child(n + 2) { text-align: right; font-variant-numeric: tabular-nums; }
 @container (width < 400px) {
@@ -97,3 +97,5 @@
 .viz-legend button:is(:hover, :focus-visible) { color: var(--viz-ink); background: var(--viz-grid); }
 .viz-legend button[aria-pressed="true"] { color: var(--viz-ink); background: color-mix(in srgb, var(--strip-color) 12%, var(--viz-surface)); }
 .viz-card:has(.range-menu:not([hidden])) { z-index: 3; }
+
+.viz-legend button:active { transform: none; }

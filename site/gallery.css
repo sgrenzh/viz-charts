@@ -10,6 +10,7 @@
   --tile-action-fill: #e2e2e2;
   --tile-action-hover: #d8d8d8;
   --panel: #fafafa;
+  --dropdown-surface: #fff;
   --ink: #171717;
   --muted: #595959;
   --button: #ededed;
@@ -28,6 +29,7 @@
   --tile-action-fill: #2c2c2c;
   --tile-action-hover: #383838;
   --panel: #181818;
+  --dropdown-surface: #181818;
   --ink: #f5f5f5;
   --muted: #aaa;
   --button: #252525;
@@ -74,7 +76,7 @@ button { transition: background-color 160ms ease, color 160ms ease, transform 18
 .chart-nav {
   --settings-gap: 6px;
   --settings-space: calc(var(--pill-size) + var(--settings-gap) + 4px);
-  --settings-fade-width: 28px;
+  --settings-fade-width: 48px;
   position: relative;
   isolation: isolate;
   margin: 0 -4px 16px;
@@ -165,8 +167,8 @@ button:active { transform: scale(.97); transition-duration: 160ms, 160ms, 75ms; 
 .gallery-tile > .chart-theme { cursor: default; }
 .tile-actions {
   position: absolute;
-  right: var(--tile-action-inset);
-  bottom: var(--tile-action-inset);
+  right: 12px;
+  bottom: 12px;
   display: flex;
   gap: 6px;
 }
@@ -286,6 +288,7 @@ dialog::backdrop { background: #0009; }
 }
 .dropdown-trigger span { overflow: hidden; text-overflow: ellipsis; }
 .segmented { --segment-inset: 3px; position: relative; display: flex; block-size: var(--pill-size); gap: 2px; padding: var(--segment-inset); }
+.preview-options .segmented { gap: 0; }
 .segmented[data-indicator]::before {
   content: "";
   position: absolute;
@@ -344,7 +347,7 @@ dialog::backdrop { background: #0009; }
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: var(--panel);
+  background: var(--dropdown-surface);
   box-shadow: 0 6px 24px #0003;
 }
 .dropdown-menu button {
@@ -360,7 +363,7 @@ dialog::backdrop { background: #0009; }
   text-align: left;
 }
 .dropdown-menu button:is(:hover, :focus-visible) { background: var(--button); outline-offset: -3px; }
-.dropdown-menu button[aria-checked="true"] { background: var(--button-selected); }
+.dropdown-menu button[aria-checked="true"] { background: var(--button); }
 .dropdown-menu svg { width: 18px; height: 18px; flex: none; }
 
 .dialog-heading { position: sticky; top: 0; z-index: 1; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--panel); }
@@ -413,3 +416,6 @@ dialog::backdrop { background: #0009; }
 }
 @media (max-width: 360px) { .segmented { font-size: var(--viz-type-label-size); } }
 @media (max-width: 440px) { .segmented-chart label:not(:first-child, :last-child) span { padding-inline: 8px; } }
+
+.chart-toolbar .dropdown-trigger { background: var(--button); color: var(--ink); }
+.preview-actions .icon-button svg { stroke-width: 1.5; }
