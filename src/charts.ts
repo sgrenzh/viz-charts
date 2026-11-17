@@ -393,6 +393,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   const chartId = ++nextChartId;
   const clipId = "viz-strip-clip-" + chartId;
   const gradientId = "viz-line-gradient-" + chartId;
+  const gridMaskId = "viz-grid-mask-" + chartId;
   const svg = svgElement("svg", { role: "img" });
   const lineMarkers = svgElement("g", { class: "viz-line-markers", "aria-hidden": "true", "pointer-events": "none" });
   tooltip.hidden = true;
@@ -461,17 +462,44 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       svg.replaceChildren(clip, group);
     } else {
       svg.replaceChildren(...marks);
+      const defs = svgElement("defs", {});
       if (layout.lineFill) {
         const { path, color, top, bottom } = layout.lineFill;
-        const defs = svgElement("defs", {});
         const gradient = svgElement("linearGradient", { id: gradientId, gradientUnits: "userSpaceOnUse", x1: 0, x2: 0, y1: top, y2: bottom });
         gradient.append(
           svgElement("stop", { offset: 0, "stop-color": color, "stop-opacity": 0.4 }),
           svgElement("stop", { offset: 1, "stop-color": color, "stop-opacity": 0 }),
         );
         defs.append(gradient);
-        svg.prepend(defs, svgElement("path", { d: path, fill: `url(#${gradientId})`, "aria-hidden": "true", "pointer-events": "none" }));
+        svg.prepend(svgElement("path", { d: path, fill: `url(#${gradientId})`, "aria-hidden": "true", "pointer-events": "none" }));
       }
+      const gridLines = marks.filter(node => node.localName === "line");
+      if (gridLines.length) {
+        const rows = gridLines.map(node => Number(node.getAttribute("y1")));
+        const bars = marks.filter(node => {
+          if (node.localName !== "rect") return false;
+          const y = Number(node.getAttribute("y"));
+          const height = Number(node.getAttribute("height"));
+          return height > 0 && rows.some(row => row + 0.5 > y && row - 0.5 < y + height);
+        });
+        if (bars.length || layout.lineFill) {
+          const bounds = { x: 0, y: 0, width: layout.width, height: layout.height };
+          const mask = svgElement("mask", { id: gridMaskId, ...bounds, maskUnits: "userSpaceOnUse" });
+          mask.append(svgElement("rect", { ...bounds, fill: "white" }));
+          for (const bar of bars) {
+            const silhouette = bar.cloneNode() as SVGElement;
+            silhouette.setAttribute("fill", "black");
+            silhouette.removeAttribute("opacity");
+            mask.append(silhouette);
+          }
+          if (layout.lineFill) mask.append(svgElement("path", { d: layout.lineFill.path, fill: "black" }));
+          defs.append(mask);
+          const grid = svgElement("g", { mask: `url(#${gridMaskId})` });
+          gridLines[0].before(grid);
+          grid.append(...gridLines);
+        }
+      }
+      if (defs.hasChildNodes()) svg.prepend(defs);
       if (isLine()) svg.append(lineMarkers);
     }
     display(keepLineSelection ? active : -1);

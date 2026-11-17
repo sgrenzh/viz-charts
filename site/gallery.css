@@ -2,6 +2,7 @@
 [hidden] { display: none !important; }
 
 :root {
+  scrollbar-gutter: stable;
   color-scheme: light;
   --page: #f2f2f2;
   --gallery-background: #fff;
@@ -203,7 +204,9 @@ dialog::backdrop { background: #0009; }
   overflow-anchor: none;
 }
 .preview-dialog[open] { display: flex; flex-direction: column; }
-.preview-dialog::backdrop { background: rgb(255 255 255 / 80%); backdrop-filter: blur(16px); }
+.preview-dialog::backdrop { background: rgb(255 255 255 / 80%); backdrop-filter: blur(16px); transition: opacity 400ms ease; }
+.preview-dialog[data-closing]::backdrop { opacity: 0; }
+.preview-dialog[data-closing] .preview-options { opacity: 0; transition: opacity 180ms ease-out; }
 .preview-content { display: grid; flex: none; gap: var(--preview-spacing); width: 100%; margin: auto; }
 .preview-stage, .preview-options { border-radius: 28px; background: var(--gallery-tile); }
 .preview-stage { position: relative; display: grid; place-items: center; min-block-size: 424px; padding-block: 54px 16px; }

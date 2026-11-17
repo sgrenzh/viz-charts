@@ -8,6 +8,7 @@ const siteSettings = byId<HTMLDialogElement>("site-settings");
 const sitePalette = byId<HTMLSelectElement>("site-palette");
 const siteThemeOptions = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="site-theme"]'));
 const preview = byId<HTMLDialogElement>("preview");
+const previewContent = byId("preview-content");
 const previewStage = byId("preview-stage");
 const previewClose = byId("preview-close");
 const previewFields = byId("preview-fields");
@@ -307,11 +308,11 @@ function createChartControls(index: number) {
     data.setAttribute("aria-label", `View data for ${config.title}`);
   }
   settings.addEventListener("click", () => {
-    if (!preview.open) return;
+    if (!preview.open || preview.hasAttribute("data-closing")) return;
     status.textContent = "";
     syncConfigurator();
     configuratorScroll = { modal: preview.scrollTop, fields: previewFields.scrollTop };
-    openingAnimations.splice(0).forEach(animation => animation.cancel());
+    previewAnimations.splice(0).forEach(animation => animation.cancel());
     preview.close();
     editor.showModal();
   });
@@ -379,9 +380,11 @@ let configuratorScroll: { modal: number; fields: number } | undefined;
 let detail: ReturnType<typeof mountChart> | undefined;
 let detailPlot: HTMLElement | null = null;
 let detailWidth = 0;
-let openingAnimations: Animation[] = [];
+let previewAnimations: Animation[] = [];
 const detailResize = new ResizeObserver(resizeDetail);
 const mobilePreview = matchMedia("(max-width: 660px)");
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+const previewDuration = 400;
 function updatePreviewFade() {
   const remaining = previewFields.scrollHeight - previewFields.clientHeight - previewFields.scrollTop;
   previewActions.toggleAttribute("data-more-controls", remaining > 1);
@@ -455,7 +458,7 @@ function detailConfig(index: number): ChartConfig {
 }
 
 function resizeDetail() {
-  if (!detail || !preview.open) return;
+  if (!detail || !preview.open || preview.hasAttribute("data-closing")) return;
   const homeWidth = charts[previewIndex].host.firstElementChild?.getBoundingClientRect().width;
   if (homeWidth) preview.style.setProperty("--preview-chart-width", `${homeWidth}px`);
   else preview.style.removeProperty("--preview-chart-width");
@@ -469,8 +472,8 @@ function resizeDetail() {
 }
 
 function clearDetail() {
-  openingAnimations.forEach(animation => animation.cancel());
-  openingAnimations = [];
+  previewAnimations.forEach(animation => animation.cancel());
+  previewAnimations = [];
   detailResize.disconnect();
   detail?.destroy();
   detail = undefined;
@@ -481,7 +484,7 @@ function clearDetail() {
 function showPreview(index: number) {
   const opening = !preview.open;
   const homeCard = charts[index].host.firstElementChild;
-  const animate = opening && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const animate = opening && !reducedMotion.matches;
   const origin = animate ? homeCard?.getBoundingClientRect() : undefined;
   const originTile = animate ? charts[index].card.getBoundingClientRect() : undefined;
   closeCurrentMenu?.();
@@ -508,11 +511,12 @@ function showPreview(index: number) {
   }
 }
 
-function animatePreview(originTile: DOMRect, originChart: DOMRect, card: Element) {
+function previewTransforms(originTile: DOMRect, originChart: DOMRect, card: Element) {
   const scale = fitPreviewChart();
   const stage = previewStage.getBoundingClientRect();
   const chart = card.getBoundingClientRect();
-  if (!stage.width || !stage.height || !chart.width || !chart.height) return;
+  if (!originTile.width || !originTile.height || !originChart.width || !originChart.height
+    || !stage.width || !stage.height || !chart.width || !chart.height) return;
   const sx = originTile.width / stage.width;
   const sy = originTile.height / stage.height;
   const stageTransform = `translate(${originTile.left - stage.left}px, ${originTile.top - stage.top}px) scale(${sx}, ${sy})`;
@@ -520,8 +524,15 @@ function animatePreview(originTile: DOMRect, originChart: DOMRect, card: Element
   const x = ((originChart.left - originTile.left) / sx - (chart.left - stage.left)) / scale;
   const y = ((originChart.top - originTile.top) / sy - (chart.top - stage.top)) / scale;
   const chartTransform = `translate(${x}px, ${y}px) scale(${originChart.width / (chart.width * sx)}, ${originChart.height / (chart.height * sy)})`;
-  const timing = { duration: 400, easing: "cubic-bezier(.2, .8, .25, 1)" };
-  openingAnimations = [
+  return { stageTransform, chartTransform };
+}
+
+function animatePreview(originTile: DOMRect, originChart: DOMRect, card: Element) {
+  const transforms = previewTransforms(originTile, originChart, card);
+  if (!transforms) return;
+  const { stageTransform, chartTransform } = transforms;
+  const timing = { duration: previewDuration, easing: "cubic-bezier(.2, .8, .25, 1)" };
+  previewAnimations = [
     previewStage.animate([
       { transform: stageTransform, transformOrigin: "top left", zIndex: 4 },
       { transform: "none", transformOrigin: "top left", zIndex: 4 },
@@ -536,8 +547,56 @@ function animatePreview(originTile: DOMRect, originChart: DOMRect, card: Element
   ];
 }
 
+function closePreview() {
+  if (!preview.open || preview.hasAttribute("data-closing")) return;
+  const home = charts[previewIndex];
+  const homeCard = home?.host.firstElementChild;
+  const card = previewHost.firstElementChild;
+  if (reducedMotion.matches || !home || !homeCard || !card) {
+    preview.close();
+    return;
+  }
+
+  // Capture the current motion before cancelling in case dismissal interrupts the opening.
+  const stageStart = getComputedStyle(previewStage).transform || "none";
+  const chartStart = getComputedStyle(card).transform || "none";
+  const closeOpacity = getComputedStyle(previewClose).opacity || "1";
+  previewAnimations.splice(0).forEach(animation => animation.cancel());
+  const transforms = previewTransforms(home.card.getBoundingClientRect(), homeCard.getBoundingClientRect(), card);
+  if (!transforms) {
+    preview.close();
+    return;
+  }
+
+  preview.setAttribute("data-closing", "");
+  previewContent.inert = true;
+  const timing = { duration: previewDuration, easing: "cubic-bezier(.75, 0, .8, .2)", fill: "forwards" } as const;
+  const animations = [
+    previewStage.animate([
+      { transform: stageStart, transformOrigin: "top left", zIndex: 4 },
+      { transform: transforms.stageTransform, transformOrigin: "top left", zIndex: 4 },
+    ], timing),
+    card.animate([
+      { transform: chartStart, transformOrigin: "top left" },
+      { transform: transforms.chartTransform, transformOrigin: "top left" },
+    ], timing),
+    previewClose.animate([{ opacity: closeOpacity }, { opacity: 0 }], { duration: 150, fill: "forwards" }),
+  ];
+  previewAnimations = animations;
+  void Promise.allSettled(animations.map(animation => animation.finished)).then(() => {
+    if (preview.open && previewAnimations === animations) preview.close();
+  });
+}
+
+preview.addEventListener("cancel", event => {
+  event.preventDefault();
+  closePreview();
+});
+
 preview.addEventListener("close", () => {
   if (preview.open || configuratorScroll) return;
+  preview.removeAttribute("data-closing");
+  previewContent.inert = false;
   closeCurrentMenu?.();
   clearDetail();
   previewIndex = -1;
@@ -662,12 +721,16 @@ chartPalette.addEventListener("change", () => {
   useSchemeAccent(index);
 });
 for (const dialog of [siteSettings, preview, editor, dataDialog]) {
+  const dismiss = () => {
+    if (dialog === preview) closePreview();
+    else dialog.close();
+  };
   const close = dialog.querySelector("[data-close]");
   if (!close?.hasChildNodes()) close?.append(icon("close"));
-  close?.addEventListener("click", () => { closeCurrentMenu?.(); dialog.close(); });
+  close?.addEventListener("click", () => { closeCurrentMenu?.(); dismiss(); });
   dialog.addEventListener("close", () => { if (!dialog.open) closeCurrentMenu?.(); });
   dialog.addEventListener("click", event => {
-    if (event.target === dialog || (dialog === preview && event.target === preview.firstElementChild)) dialog.close();
+    if (event.target === dialog || (dialog === preview && event.target === previewContent)) dismiss();
   });
 }
 [xAxis, yAxis, grid].forEach(control => control.addEventListener("change", applyControls));
