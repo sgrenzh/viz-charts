@@ -99,3 +99,8 @@
 .viz-card:has(.range-menu:not([hidden])) { z-index: 3; }
 
 .viz-legend button:active { transform: none; }
+
+@media (forced-colors: active) {
+  .viz-plot:focus-visible, .viz-legend button:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+  .viz-legend button[aria-pressed="true"] { border: 1px solid Highlight; }
+}
