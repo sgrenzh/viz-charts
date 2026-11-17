@@ -31,14 +31,13 @@ const familyLabels = {
   column: "Column",
   stacked: "Stacked column",
   line: "Line",
-  "line-column": "Line + column",
   heatmap: "Calendar heatmap",
   strip: "Proportional strip",
 };
 function chartFamily(config: ChartConfig) {
   return config.type === "column" && config.stacked ? "stacked" : config.type;
 }
-const chartTypeLabels: Record<keyof typeof familyLabels, string> = {
+const chartTypeLabels: Record<ReturnType<typeof chartFamily>, string> = {
   column: "Column chart",
   stacked: "Stacked column chart",
   line: "Line chart",
@@ -343,7 +342,7 @@ function createChartControls(index: number) {
   return { codeButton, range: range.root, data, refresh };
 }
 
-const charts = presets.map(({ layout }, index) => {
+const charts = presets.map(({ layout, formatHeadline }, index) => {
   const card = document.createElement("div");
   card.className = "gallery-tile";
   if (layout) card.dataset.layout = layout;
@@ -362,10 +361,14 @@ const charts = presets.map(({ layout }, index) => {
   actions.append(data, settingsButton);
   card.append(host, actions);
   gallery.append(card);
-  return { card, host, codeButton, range, refresh, settingsButton, ...mountChart(host, previewConfig(index)) };
+  return { card, host, codeButton, range, refresh, settingsButton, ...mountChart(host, previewConfig(index), { formatHeadline }) };
 });
 
 let activeFamily = "all";
+function matchesFilter(config: ChartConfig) {
+  const family = chartFamily(config);
+  return activeFamily === "all" || (family === "line-column" ? "line" : family) === activeFamily;
+}
 const filters = Object.entries({ all: "All", ...familyLabels }).map(([family, label]) => {
   const pill = document.createElement("button");
   pill.type = "button";
@@ -380,7 +383,7 @@ const filters = Object.entries({ all: "All", ...familyLabels }).map(([family, la
     activeFamily = family;
     gallery.classList.toggle("is-filtered", family !== "all");
     for (const filter of filters) filter.pill.setAttribute("aria-pressed", String(filter.family === activeFamily));
-    charts.forEach((chart, i) => { chart.card.hidden = activeFamily !== "all" && chartFamily(configs[i]) !== activeFamily; });
+    charts.forEach((chart, i) => { chart.card.hidden = !matchesFilter(configs[i]); });
   });
   chartTypes.append(pill);
   return { family, pill };
@@ -534,7 +537,7 @@ function showPreview(index: number) {
   previewActions.replaceChildren(charts[index].codeButton);
   if (opening) preview.showModal();
   previewFields.scrollTop = 0;
-  detail = mountChart(previewHost, previewConfig(index));
+  detail = mountChart(previewHost, previewConfig(index), { formatHeadline: presets[index].formatHeadline });
   detailPlot = previewHost.querySelector<HTMLElement>(".viz-plot");
   if (detailPlot) detailResize.observe(detailPlot);
   if (homeCard) detailResize.observe(homeCard);
@@ -655,7 +658,7 @@ editor.addEventListener("close", () => {
 
 function drawChart(index: number) {
   const chart = charts[index];
-  chart.card.hidden = activeFamily !== "all" && chartFamily(configs[index]) !== activeFamily;
+  chart.card.hidden = !matchesFilter(configs[index]);
   chart.refresh();
   chart.settingsButton.setAttribute("aria-label", `Chart settings for ${configs[index].title}`);
   chart.settingsButton.title = `Chart settings for ${configs[index].title}`;

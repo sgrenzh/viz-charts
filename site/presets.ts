@@ -1,4 +1,4 @@
-import type { ChartConfig } from "../src/charts.js";
+import type { ChartConfig, ChartOptions } from "../src/charts.js";
 
 const range = (size: number, map: (i: number) => number) => Array.from({ length: size }, (_, i) => map(i));
 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
@@ -25,10 +25,13 @@ const contractItems = [
 ];
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0).toLocaleString("en");
 const usd = (value: number, digits: number) => "$" + value.toFixed(digits);
+const retailHeadline = new Intl.NumberFormat("en", {
+  style: "currency", currency: "USD", notation: "compact", minimumFractionDigits: 3, maximumFractionDigits: 3,
+}).format;
 
-export const presets: { config: ChartConfig; layout?: "wide" | "calendar"; previousTitle: string }[] = [
+export const presets: { config: ChartConfig; layout?: "wide" | "calendar"; previousTitle: string; formatHeadline?: ChartOptions["formatHeadline"] }[] = [
   { previousTitle: "Accounts created", config: { version: 1, type: "column", title: "New library members", headline: sum(created), period: "30 days", height: 200, labels: labels(30), series: [{ name: "New members", values: created }], barStyle: "cap", barRadius: 2, yAxis: { show: false }, grid: false } },
-  { previousTitle: "Market cap", config: { version: 1, type: "line", title: "Retail revenue", headline: usd(market[111] / 10, 3) + "B", period: "1 month", height: 200, labels: labels(112, 4), series: [{ name: "Revenue", values: market.map(x => x * 1e8) }], yAxis: { format: "compact" }, marker: true } },
+  { previousTitle: "Market cap", formatHeadline: retailHeadline, config: { version: 1, type: "line", title: "Retail revenue", headline: retailHeadline(market[111] * 1e8), period: "1 month", height: 200, labels: labels(112, 4), series: [{ name: "Revenue", values: market.map(x => x * 1e8) }], yAxis: { format: "compact" }, marker: true } },
   { previousTitle: "Amount of sales", config: { version: 1, type: "column", title: "Gallery ticket sales", headline: sum(sales), period: "Jan – Jun", height: 200, labels: months, series: [{ name: "Sales", values: sales }], barRadius: 8, yAxis: { show: false } } },
   { previousTitle: "Active accounts", config: { version: 1, type: "column", title: "Active subscribers", headline: active[82].toLocaleString("en"), period: "1 month", height: 232, labels: labels(83, 3), series: [{ name: "Subscribers", values: active }], yAxis: { format: "compact" }, barWidth: 4 } },
   { layout: "calendar", previousTitle: "Transactions", config: { version: 1, type: "heatmap", title: "Daily museum visits", period: "1 year", days: Array.from({ length: 365 }, (_, i) => ({ date: date(i).toISOString().slice(0, 10), value: i % 7 > 0 && i % 7 < 6 ? Math.floor(noise(i) * (i % 28 < 13 ? 20 : 4)) : 0 })) } },

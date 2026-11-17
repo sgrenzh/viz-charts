@@ -80,6 +80,7 @@ interface LineFill { path: string; color: string; top: number; bottom: number }
 interface Layout { width: number; height: number; shapes: Shape[]; marks: Mark[]; clip?: Attrs; lineFill?: LineFill }
 export interface ChartOptions {
   formatValue?: (value: number, axis?: AxisConfig) => string;
+  formatHeadline?: (value: number) => string;
   controls?: HTMLElement;
 }
 
@@ -382,6 +383,9 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   let active = -1;
   let pinned = false;
   let linePointer: number | null = null;
+  let headline: HTMLParagraphElement | undefined;
+  let headlineMotion: Animation | undefined;
+  const reducedMotion = host.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)");
   let stripSelection = initial.type === "strip" ? initial.selected ?? -1 : -1;
   let layout: Layout;
   let stripRows: HTMLButtonElement[] = [];
@@ -410,9 +414,26 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     return config.type === "line" || config.type === "line-column";
   }
 
+  function displayHeadline(index: number, mark: Mark | undefined) {
+    if (!headline || (config.type !== "line" && config.type !== "line-column")) return;
+    const value = config.series[0]?.values[index];
+    const text = mark && value != null && options.formatHeadline
+      ? options.formatHeadline(value) : mark?.values[0]?.[1] ?? config.headline ?? "";
+    if (headline.textContent === text) return;
+    headlineMotion?.cancel();
+    headline.textContent = text;
+    if (!reducedMotion?.matches) {
+      headlineMotion = headline.animate?.([
+        { transform: "translateY(2px)", opacity: 0.78 },
+        { transform: "none", opacity: 1 },
+      ], { duration: 85, easing: "ease-out" });
+    }
+  }
+
   function display(index: number) {
     active = index;
     const mark = layout?.marks[index];
+    displayHeadline(index, mark);
     const points = pinned && "series" in config && config.marker !== false ? mark?.points ?? [] : [];
     lineMarkers.replaceChildren(...points.map(point => svgElement("circle", {
       cx: mark.x, cy: point.y, r: 5, fill: point.color, stroke: "var(--viz-surface)", "stroke-width": 1,
@@ -533,8 +554,11 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const title = element("h2");
     title.textContent = config.title;
     headingCopy.append(title);
+    headlineMotion?.cancel();
+    headlineMotion = undefined;
+    headline = undefined;
     if (config.headline) {
-      const headline = element("p", "viz-headline");
+      headline = element("p", "viz-headline");
       headline.textContent = config.headline;
       headingCopy.append(headline);
     }
@@ -612,12 +636,12 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     svg.setPointerCapture(event.pointerId);
   });
   svg.addEventListener("pointermove", event => {
-    if (linePointer === event.pointerId) {
-      pinned = true;
-      display(closest(event));
-    } else if (!pinned && event.pointerType !== "touch") {
-      display(closest(event));
-    }
+    const dragging = linePointer === event.pointerId;
+    if (!dragging && (pinned || event.pointerType === "touch")) return;
+    const index = closest(event);
+    if (isLine() && index === active && (!dragging || pinned)) return;
+    if (dragging) pinned = true;
+    display(index);
   });
   svg.addEventListener("pointerup", event => {
     if (!event.isPrimary || event.button !== 0) return;
@@ -689,6 +713,6 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const data = layout ?? chartLayout(config, 320, options);
       return data.marks.flatMap(mark => mark.values.map(([series, value]) => ({ label: mark.label, series, value })));
     },
-    destroy() { observer.disconnect(); card.remove(); },
+    destroy() { headlineMotion?.cancel(); observer.disconnect(); card.remove(); },
   };
 }
