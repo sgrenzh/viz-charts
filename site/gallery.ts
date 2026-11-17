@@ -16,7 +16,6 @@ const previewHost = byId("preview-chart");
 const previewActions = byId("preview-controls");
 const previewRange = byId("preview-range");
 const editor = byId<HTMLDialogElement>("editor");
-const dataDialog = byId<HTMLDialogElement>("data-dialog");
 const chartPalette = byId<HTMLSelectElement>("chart-palette");
 const themeOptions = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="chart-theme"]'));
 const xAxis = byId<HTMLInputElement>("axis-x");
@@ -318,15 +317,12 @@ function createChartControls(index: number) {
   const codeButton = button("Code", "code");
   codeButton.append("Code");
   codeButton.removeAttribute("title");
-  const data = button("View chart data", "data");
   codeButton.setAttribute("aria-haspopup", "dialog");
   codeButton.setAttribute("aria-controls", editor.id);
-  data.setAttribute("aria-haspopup", "dialog");
   function refresh() {
     const config = configs[index];
     range.refresh(viewsFor(index).map(view => view.label), selectedViews[index], config.type === "strip" ? "Sort by" : "Date range");
     codeButton.setAttribute("aria-label", `Code for ${config.title}`);
-    data.setAttribute("aria-label", `View data for ${config.title}`);
   }
   codeButton.addEventListener("click", () => {
     if (!preview.open || preview.hasAttribute("data-closing")) return;
@@ -337,9 +333,8 @@ function createChartControls(index: number) {
     preview.close();
     editor.showModal();
   });
-  data.addEventListener("click", () => showData(index));
   refresh();
-  return { codeButton, range: range.root, data, refresh };
+  return { codeButton, range: range.root, refresh };
 }
 
 const charts = presets.map(({ layout, formatHeadline }, index) => {
@@ -354,11 +349,10 @@ const charts = presets.map(({ layout, formatHeadline }, index) => {
   settingsButton.setAttribute("aria-haspopup", "dialog");
   settingsButton.setAttribute("aria-controls", preview.id);
   settingsButton.addEventListener("click", () => showPreview(index));
-  const { codeButton, range, data, refresh } = createChartControls(index);
+  const { codeButton, range, refresh } = createChartControls(index);
   const actions = document.createElement("div");
   actions.className = "tile-actions";
-  data.setAttribute("aria-controls", dataDialog.id);
-  actions.append(data, settingsButton);
+  actions.append(settingsButton);
   card.append(host, actions);
   gallery.append(card);
   return { card, host, codeButton, range, refresh, settingsButton, ...mountChart(host, previewConfig(index), { formatHeadline }) };
@@ -693,26 +687,6 @@ function applyControls() {
   }
 }
 
-function showData(index: number) {
-  const rows = charts[index].getData();
-  byId("data-name").textContent = configs[index].title + " · " + viewsFor(index)[selectedViews[index]].label;
-  const table = document.createElement("table");
-  const head = table.createTHead().insertRow();
-  ["Label", "Series", "Value"].forEach(name => {
-    const th = document.createElement("th");
-    th.scope = "col";
-    th.textContent = name;
-    head.append(th);
-  });
-  const body = table.createTBody();
-  rows.forEach(({ label, series, value }) => {
-    const row = body.insertRow();
-    [label, series, value].forEach(text => { row.insertCell().textContent = text; });
-  });
-  byId("data-table").replaceChildren(table);
-  dataDialog.showModal();
-}
-
 function applySiteAppearance() {
   const dark = isDark(siteAppearance.theme);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
@@ -769,7 +743,7 @@ chartPalette.addEventListener("change", () => {
   saveChartAppearance(index);
   useSchemeAccent(index);
 });
-for (const dialog of [siteSettings, preview, editor, dataDialog]) {
+for (const dialog of [siteSettings, preview, editor]) {
   const dismiss = () => {
     if (dialog === preview) closePreview();
     else dialog.close();
@@ -891,3 +865,17 @@ byId("reset").addEventListener("click", () => {
   update({ ...preset, title: current.title, theme: { ...preset.theme, fontFamily: current.theme?.fontFamily } });
   status.textContent = "Preset restored.";
 });
+
+// Fade the navigation as it crosses the viewport edge, in either scroll direction.
+const chartNav = document.querySelector<HTMLElement>(".chart-nav")!;
+let navFadeFrame = 0;
+function updateNavFade() {
+  navFadeFrame = 0;
+  const { top, height } = chartNav.getBoundingClientRect();
+  chartNav.style.opacity = String(Math.max(0, Math.min(1, (top + height) / height)));
+}
+window.addEventListener("scroll", () => {
+  if (!navFadeFrame) navFadeFrame = requestAnimationFrame(updateNavFade);
+}, { passive: true });
+window.addEventListener("resize", updateNavFade);
+updateNavFade();
