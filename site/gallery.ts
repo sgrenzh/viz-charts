@@ -9,7 +9,7 @@ const sitePalette = byId<HTMLSelectElement>("site-palette");
 const siteThemeOptions = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="site-theme"]'));
 const preview = byId<HTMLDialogElement>("preview");
 const previewStage = byId("preview-stage");
-const previewDivider = byId("preview-divider");
+const previewFields = byId("preview-fields");
 const previewHost = byId("preview-chart");
 const previewActions = byId("preview-controls");
 const previewRange = byId("preview-range");
@@ -22,6 +22,7 @@ const themeOptions = Array.from(document.querySelectorAll<HTMLInputElement>('inp
 const xAxis = byId<HTMLInputElement>("axis-x");
 const yAxis = byId<HTMLInputElement>("axis-y");
 const grid = byId<HTMLInputElement>("grid");
+const gradientFill = byId<HTMLInputElement>("gradient-fill");
 const legendPosition = byId<HTMLSelectElement>("legend-position");
 const showVolume = byId<HTMLInputElement>("show-volume");
 const source = byId<HTMLTextAreaElement>("config");
@@ -371,40 +372,12 @@ let detailPlot: HTMLElement | null = null;
 let detailWidth = 0;
 const detailResize = new ResizeObserver(resizeDetail);
 const mobilePreview = matchMedia("(max-width: 660px)");
-let split = 50;
-let resizePointer: { id: number; y: number; split: number } | undefined;
-
-function setPreviewSplit(value: number) {
-  split = Math.max(25, Math.min(75, value));
-  preview.style.setProperty("--preview-top", `${split}fr`);
-  preview.style.setProperty("--preview-bottom", `${100 - split}fr`);
-  const percent = Math.round(split);
-  previewDivider.setAttribute("aria-valuenow", String(percent));
-  previewDivider.setAttribute("aria-valuetext", `${percent}% chart preview`);
-  fitPreviewChart();
+function updatePreviewFade() {
+  const remaining = previewFields.scrollHeight - previewFields.clientHeight - previewFields.scrollTop;
+  previewActions.toggleAttribute("data-more-controls", remaining > 1);
 }
 
-previewDivider.addEventListener("pointerdown", event => {
-  if (!event.isPrimary || event.button !== 0) return;
-  resizePointer = { id: event.pointerId, y: event.clientY, split };
-  previewDivider.setPointerCapture(event.pointerId);
-  previewDivider.dataset.resizing = "";
-});
-previewDivider.addEventListener("pointermove", event => {
-  if (resizePointer?.id !== event.pointerId) return;
-  const height = (previewStage.parentElement?.clientHeight ?? 0) - previewDivider.offsetHeight;
-  if (height > 0) setPreviewSplit(resizePointer.split + (event.clientY - resizePointer.y) * 100 / height);
-});
-previewDivider.addEventListener("lostpointercapture", () => {
-  resizePointer = undefined;
-  delete previewDivider.dataset.resizing;
-});
-previewDivider.addEventListener("keydown", event => {
-  const value = { ArrowUp: split - 5, ArrowDown: split + 5, Home: 25, End: 75 }[event.key];
-  if (value === undefined) return;
-  event.preventDefault();
-  setPreviewSplit(value);
-});
+previewFields.addEventListener("scroll", updatePreviewFade, { passive: true });
 
 function fitPreviewChart() {
   const height = previewHost.offsetHeight;
@@ -466,6 +439,7 @@ function resizeDetail() {
     detail.update(detailConfig(previewIndex));
   }
   fitPreviewChart();
+  updatePreviewFade();
 }
 
 function clearDetail() {
@@ -500,16 +474,14 @@ function showPreview(index: number) {
   syncPreviewAppearance(index);
   previewRange.replaceChildren(charts[index].range);
   previewActions.replaceChildren(charts[index].settings);
-  if (opening) {
-    preview.showModal();
-    setPreviewSplit(50);
-  }
-  if (previewActions.parentElement) previewActions.parentElement.scrollTop = 0;
+  if (opening) preview.showModal();
+  previewFields.scrollTop = 0;
   detail = mountChart(previewHost, previewConfig(index));
   detailPlot = previewHost.querySelector<HTMLElement>(".viz-plot");
   if (detailPlot) detailResize.observe(detailPlot);
   if (homeCard) detailResize.observe(homeCard);
   detailResize.observe(previewStage);
+  detailResize.observe(previewFields);
   detailResize.observe(previewHost);
   resizeDetail();
   if (opening) preview.scrollTop = 0;
@@ -572,6 +544,8 @@ function sync() {
   xAxis.checked = hasAxes && config.xAxis?.show !== false;
   yAxis.checked = hasAxes && config.yAxis?.show !== false;
   grid.checked = hasAxes && config.grid !== false;
+  byId("gradient-fill-field").hidden = config.type !== "line";
+  gradientFill.checked = config.type === "line" && config.gradientFill === true;
   byId("legend-position-field").hidden = config.type !== "strip";
   legendPosition.value = config.type === "strip" ? config.legendPosition ?? "right" : "right";
   syncSelectDropdown(legendPosition);
@@ -674,6 +648,10 @@ for (const dialog of [siteSettings, preview, editor, dataDialog]) {
   });
 }
 [xAxis, yAxis, grid].forEach(control => control.addEventListener("change", applyControls));
+gradientFill.addEventListener("change", () => {
+  const config = configs[chosen];
+  if (config.type === "line") update({ ...config, gradientFill: gradientFill.checked });
+});
 legendPosition.addEventListener("change", () => {
   const config = configs[chosen];
   if (config.type === "strip") update({ ...config, legendPosition: legendPosition.value as LegendPosition });
@@ -744,6 +722,9 @@ function readConfig(text: string): ChartConfig {
     }
     if (parsed.type === "line-column" && parsed.showVolume !== undefined && typeof parsed.showVolume !== "boolean") {
       throw new Error("Show volume must be true or false.");
+    }
+    if (parsed.type === "line" && parsed.gradientFill !== undefined && typeof parsed.gradientFill !== "boolean") {
+      throw new Error("Gradient fill must be true or false.");
     }
   } else {
     throw new Error("Unknown chart type.");

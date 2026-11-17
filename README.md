@@ -40,4 +40,6 @@ const chart = mountChart(document.getElementById("chart"), {
 
 Call `chart.update(config)` when your data or settings change and `chart.destroy()` when you remove the chart.
 
+For a line chart, set `gradientFill: true` to fade the lead series color toward the bottom of the plot. In the gallery, find **Gradient fill** under **Settings → Plot options**.
+
 The chart stylesheet loads [Allo](https://allo.joshpuckett.me/) by default and shares a type scale with the gallery. Set `theme.fontFamily` to use your own font on a chart. Allo ships under the [SIL Open Font License](public/licenses/allo.txt).

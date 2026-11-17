@@ -36,23 +36,24 @@
     <dialog id="preview" class="preview-dialog" aria-labelledby="preview-heading">
       <div class="preview-content">
         <div class="preview-stage" id="preview-stage"><div class="preview-chart chart-theme" id="preview-chart"></div></div>
-        <div class="preview-divider" id="preview-divider" role="separator" tabindex="0" aria-label="Chart preview height" aria-controls="preview-stage" aria-orientation="horizontal" aria-valuemin="25" aria-valuemax="75" aria-valuenow="50"></div>
         <section class="preview-options">
           <header class="preview-heading">
             <h2 id="preview-heading"></h2>
             <button class="icon-button close-button" type="button" data-close aria-label="Close chart preview" autofocus></button>
           </header>
-          <div class="option-row" id="example-field" hidden><span id="preview-example-label">Example</span><select id="preview-example" aria-labelledby="preview-example-label"></select></div>
-          <fieldset class="theme-row" aria-label="Chart theme">
-            <span aria-hidden="true">Theme</span>
-            <div class="segmented segmented-chart">
-              <label><input type="radio" name="chart-theme" value="site" checked><span>Site</span></label>
-              <label><input type="radio" name="chart-theme" value="light"><span>Light</span></label>
-              <label><input type="radio" name="chart-theme" value="dark"><span>Dark</span></label>
-            </div>
-          </fieldset>
-          <div class="option-row"><span id="chart-palette-label">Color scheme</span><select id="chart-palette" aria-labelledby="chart-palette-label"><option value="site">Site default</option><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></div>
-          <div class="option-row"><span id="preview-range-label">Date range</span><div id="preview-range"></div></div>
+          <div class="preview-fields" id="preview-fields">
+            <div class="option-row" id="example-field" hidden><span id="preview-example-label">Example</span><select id="preview-example" aria-labelledby="preview-example-label"></select></div>
+            <fieldset class="theme-row" aria-label="Chart theme">
+              <span aria-hidden="true">Theme</span>
+              <div class="segmented segmented-chart">
+                <label><input type="radio" name="chart-theme" value="site" checked><span>Site</span></label>
+                <label><input type="radio" name="chart-theme" value="light"><span>Light</span></label>
+                <label><input type="radio" name="chart-theme" value="dark"><span>Dark</span></label>
+              </div>
+            </fieldset>
+            <div class="option-row"><span id="chart-palette-label">Color scheme</span><select id="chart-palette" aria-labelledby="chart-palette-label"><option value="site">Site default</option><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></div>
+            <div class="option-row"><span id="preview-range-label">Date range</span><div id="preview-range"></div></div>
+          </div>
           <div id="preview-controls" class="preview-actions"></div>
         </section>
       </div>
@@ -66,6 +67,7 @@
           <label>Horizontal axis <input id="axis-x" type="checkbox"></label>
           <label>Vertical axis <input id="axis-y" type="checkbox"></label>
           <label>Gridlines <input id="grid" type="checkbox"></label>
+          <label id="gradient-fill-field" hidden>Gradient fill <input id="gradient-fill" type="checkbox"></label>
           <label id="show-volume-field" hidden>Show volume <input id="show-volume" type="checkbox"></label>
         </fieldset>
         <label>Configuration <textarea id="config" spellcheck="false" rows="9"></textarea></label>

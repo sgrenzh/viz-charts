@@ -1,5 +1,5 @@
 import { scaleBand, scaleLinear } from "d3-scale";
-import { line } from "d3-shape";
+import { area, line } from "d3-shape";
 
 export type ChartConfig = CartesianConfig | HeatmapConfig | StripConfig;
 export type LegendPosition = "below" | "right" | "left";
@@ -45,6 +45,7 @@ interface CartesianConfig extends BaseConfig {
   barRadius?: number;
   barWidth?: number;
   marker?: boolean;
+  gradientFill?: boolean;
   showVolume?: boolean;
 }
 interface HeatmapConfig extends BaseConfig {
@@ -75,7 +76,8 @@ interface Mark {
   colors: string[];
   points?: { y: number; color: string }[];
 }
-interface Layout { width: number; height: number; shapes: Shape[]; marks: Mark[]; clip?: Attrs }
+interface LineFill { path: string; color: string; top: number; bottom: number }
+interface Layout { width: number; height: number; shapes: Shape[]; marks: Mark[]; clip?: Attrs; lineFill?: LineFill }
 export interface ChartOptions {
   formatValue?: (value: number, axis?: AxisConfig) => string;
   controls?: HTMLElement;
@@ -219,6 +221,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
   if (showY && axisTitle) shapes.push(label(right + labelGap, top, axisTitle));
 
   const getColor = (series: Series, i: number) => series.color ?? (combo && i === 1 ? "#C8C7CB" : i ? tint(50) : color);
+  let lineFill: LineFill | undefined;
   if (column) {
     const start = indexes.map(() => ({ pos: 0, neg: 0 }));
     main.forEach((series, s) => {
@@ -259,7 +262,12 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
     main.forEach((series, i) => {
       const plotted = series.values.slice(0, indexes.length);
       const d = line<number | null>().defined(v => v !== null).x((_, j) => center(j)).y(v => y(v ?? 0))(plotted);
-      if (d) shapes.push(shape("path", { d, fill: "none", stroke: getColor(series, i), "stroke-width": 1.5, "stroke-linejoin": "round" }));
+      const stroke = getColor(series, i);
+      if (d) shapes.push(shape("path", { d, fill: "none", stroke, "stroke-width": 1.5, "stroke-linejoin": "round" }));
+      if (config.type === "line" && config.gradientFill && i === 0) {
+        const path = area<number | null>().defined(v => v !== null).x((_, j) => center(j)).y0(lineBottom).y1(v => y(v ?? 0))(plotted);
+        if (path) lineFill = { path, color: stroke, top, bottom: lineBottom };
+      }
     });
   }
   const visibleSeries = combo && !showVolume ? main : config.series;
@@ -280,7 +288,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
       points,
     };
   });
-  return { width, height, shapes, marks };
+  return { width, height, shapes, marks, ...(lineFill ? { lineFill } : {}) };
 }
 
 function heatmap(config: HeatmapConfig, available: number, formatValue: typeof format): Layout {
@@ -382,7 +390,9 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   const chartBody = element("div", "viz-body");
   const scroller = element("div", "viz-plot");
   const tooltip = element("div", "viz-tooltip");
-  const clipId = "viz-strip-clip-" + ++nextChartId;
+  const chartId = ++nextChartId;
+  const clipId = "viz-strip-clip-" + chartId;
+  const gradientId = "viz-line-gradient-" + chartId;
   const svg = svgElement("svg", { role: "img" });
   const lineMarkers = svgElement("g", { class: "viz-line-markers", "aria-hidden": "true", "pointer-events": "none" });
   tooltip.hidden = true;
@@ -451,6 +461,17 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       svg.replaceChildren(clip, group);
     } else {
       svg.replaceChildren(...marks);
+      if (layout.lineFill) {
+        const { path, color, top, bottom } = layout.lineFill;
+        const defs = svgElement("defs", {});
+        const gradient = svgElement("linearGradient", { id: gradientId, gradientUnits: "userSpaceOnUse", x1: 0, x2: 0, y1: top, y2: bottom });
+        gradient.append(
+          svgElement("stop", { offset: 0, "stop-color": color, "stop-opacity": 0.4 }),
+          svgElement("stop", { offset: 1, "stop-color": color, "stop-opacity": 0 }),
+        );
+        defs.append(gradient);
+        svg.prepend(defs, svgElement("path", { d: path, fill: `url(#${gradientId})`, "aria-hidden": "true", "pointer-events": "none" }));
+      }
       if (isLine()) svg.append(lineMarkers);
     }
     display(keepLineSelection ? active : -1);
