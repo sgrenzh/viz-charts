@@ -62,7 +62,7 @@ button { cursor: pointer; }
 
 .gallery-page { max-width: 1600px; padding: 16px clamp(12px, 3vw, 48px) 40px; margin-inline: auto; }
 .chart-nav {
-  --settings-gap: 4px;
+  --settings-gap: 6px;
   --settings-space: calc(var(--pill-size) + var(--settings-gap) + 4px);
   --settings-fade-width: 28px;
   position: relative;
@@ -92,7 +92,7 @@ button { cursor: pointer; }
 }
 .chart-types {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
   padding: 4px;
@@ -110,6 +110,8 @@ button { cursor: pointer; }
   color: var(--ink);
   white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
   transition: background-color 160ms ease, color 160ms ease, transform 180ms cubic-bezier(.2, .8, .25, 1);
 }
 .chart-types button {
@@ -133,14 +135,12 @@ button { cursor: pointer; }
   .chart-nav button:hover { background: var(--button-hover); transform: translateY(-1px); }
   .chart-types button[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--ink) 88%, var(--panel)); }
 }
-.chart-types button:active { transform: scale(.97); transition-duration: 160ms, 160ms, 75ms; }
-.chart-nav .site-settings-trigger:active { transform: scale(.96); }
+.chart-nav button:active { transform: scale(.97); transition-duration: 160ms, 160ms, 75ms; }
 @media (prefers-reduced-motion: reduce) {
   .chart-nav::before,
   .chart-nav button { transition: none; }
   .chart-nav button:hover,
-  .chart-types button:active,
-  .chart-nav .site-settings-trigger:active { transform: none; }
+  .chart-nav button:active { transform: none; }
 }
 .gallery { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .gallery-tile {
@@ -162,7 +162,7 @@ button { cursor: pointer; }
   right: var(--tile-action-inset);
   bottom: var(--tile-action-inset);
   display: flex;
-  gap: 4px;
+  gap: 6px;
 }
 .tile-actions .icon-button {
   width: var(--tile-action-size);

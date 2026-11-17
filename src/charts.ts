@@ -67,7 +67,14 @@ interface StripConfig extends BaseConfig {
 
 type Attrs = Record<string, string | number>;
 type Shape = { tag: "line" | "rect" | "path" | "circle" | "text"; attrs: Attrs; text?: string };
-interface Mark { x: number; y: number; label: string; values: [string, string][] }
+interface Mark {
+  x: number;
+  y: number;
+  label: string;
+  values: [string, string][];
+  colors: string[];
+  points?: { y: number; color: string }[];
+}
 interface Layout { width: number; height: number; shapes: Shape[]; marks: Mark[]; clip?: Attrs }
 export interface ChartOptions {
   formatValue?: (value: number, axis?: AxisConfig) => string;
@@ -81,8 +88,8 @@ const muted = "var(--viz-muted)";
 const rules = "var(--viz-grid)";
 const axisLabelSize = 12;
 const dayMs = 86_400_000;
-const tint = (strength: number) => `color-mix(in srgb, ${color} ${strength}%, var(--viz-surface))`;
-const heatColors = [16, 33, 50, 66, 83, 100].map(tint);
+const tint = (strength: number, base = color) => `color-mix(in srgb, ${base} ${strength}%, var(--viz-surface))`;
+const heatColors = [16, 33, 50, 66, 83, 100].map(strength => tint(strength));
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string) {
   const node = document.createElement(tag);
@@ -176,7 +183,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
   if (showX && config.xAxis?.label) shapes.push(label((left + right) / 2, height - 1, config.xAxis.label, "middle"));
   if (showY && config.yAxis?.label) shapes.push(label(right + 8, top, config.yAxis.label));
 
-  const getColor = (series: Series, i: number) => series.color ?? (i ? tint(50) : color);
+  const getColor = (series: Series, i: number) => series.color ?? (combo && i === 1 ? "#C8C7CB" : i ? tint(50) : color);
   if (column) {
     const start = indexes.map(() => ({ pos: 0, neg: 0 }));
     main.forEach((series, s) => {
@@ -211,25 +218,33 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
       volume.values.slice(0, indexes.length).forEach((v, i) => {
         if (v == null) return;
         const w = Math.max(1, band.bandwidth() * 0.7);
-        shapes.push(shape("rect", { x: center(i) - w / 2, y: volumeY(v), width: w, height: bottom - volumeY(v), fill: volume.color ?? "#C8C7CB" }));
+        shapes.push(shape("rect", { x: center(i) - w / 2, y: volumeY(v), width: w, height: bottom - volumeY(v), fill: getColor(volume, 1) }));
       });
     }
     main.forEach((series, i) => {
       const plotted = series.values.slice(0, indexes.length);
       const d = line<number | null>().defined(v => v !== null).x((_, j) => center(j)).y(v => y(v ?? 0))(plotted);
       if (d) shapes.push(shape("path", { d, fill: "none", stroke: getColor(series, i), "stroke-width": 1.5, "stroke-linejoin": "round" }));
-      const last = plotted.findLastIndex(v => v != null);
-      if (config.marker && last >= 0) shapes.push(shape("circle", { cx: center(last), cy: y(plotted[last] ?? 0), r: 4, fill: getColor(series, i) }));
     });
   }
   const visibleSeries = combo && !showVolume ? main : config.series;
-  const marks = config.labels.map((name, i) => ({
-    label: name,
-    x: center(i),
-    y: y(main[0]?.values[i] ?? min),
-    values: visibleSeries.map((s, j): [string, string] =>
-      [s.name, s.values[i] == null ? "—" : formatValue(s.values[i]!, combo && j === 1 ? undefined : config.yAxis)]),
-  }));
+  const colors = visibleSeries.map(getColor);
+  const marks = config.labels.map((name, i): Mark => {
+    const points = column ? undefined : main.flatMap((series, j) => {
+      const value = series.values[i];
+      return value == null ? [] : [{ y: y(value), color: colors[j] }];
+    });
+    return {
+      label: name,
+      x: center(i),
+      y: points?.[0]?.y ?? y(main[0]?.values[i] ?? min),
+      values: visibleSeries.map((series, j) => [
+        series.name, series.values[i] == null ? "—" : formatValue(series.values[i]!, combo && j === 1 ? undefined : config.yAxis),
+      ]),
+      colors,
+      points,
+    };
+  });
   return { width, height, shapes, marks };
 }
 
@@ -254,7 +269,8 @@ function heatmap(config: HeatmapConfig, available: number, formatValue: typeof f
     const date = new Date(first + i * dayMs);
     const value = data.get(date.getTime());
     const level = value === undefined ? -1 : thresholds.filter(t => value >= t).length;
-    shapes.push(shape("rect", { x, y, width: size, height: size, rx: config.radius ?? 4, fill: level < 0 ? rules : palette[Math.min(level, palette.length - 1)] ?? color }));
+    const fill = level < 0 ? rules : palette[Math.min(level, palette.length - 1)] ?? color;
+    shapes.push(shape("rect", { x, y, width: size, height: size, rx: config.radius ?? 4, fill }));
     const current = date.toLocaleDateString("en", { month: "short", timeZone: "UTC" });
     if (current !== month && (i % 7 === 0 || i === 0)) {
       shapes.push(label(x, stride * 7 + 24, current));
@@ -262,25 +278,49 @@ function heatmap(config: HeatmapConfig, available: number, formatValue: typeof f
     }
     if (value !== undefined) marks.push({
       x: x + size / 2, y: y + size / 2, label: date.toISOString().slice(0, 10),
-      values: [[config.title, formatValue(value)]],
+      values: [[config.title, formatValue(value)]], colors: [fill],
     });
   }
   const gridWidth = count ? Math.ceil(count / 7) * stride - gap : 0;
   return { width: Math.max(available, gridWidth), height: stride * 7 + 36, shapes, marks };
 }
 
+function stripTotal(items: StripConfig["items"]) {
+  return items.reduce((sum, item) => sum + Math.max(0, item.value), 0);
+}
+
+function stripShare(value: number, total: number) {
+  return total ? Math.max(0, value) / total : 0;
+}
+
+function stripFill(item: StripConfig["items"][number], index: number, selected: number) {
+  const base = item.color ?? color;
+  return index === selected || (selected < 0 && item.color) ? base : tint(38, base);
+}
+
+const shareFormat: AxisConfig = { format: "percent", digits: 1 };
+
 function strip(config: StripConfig, width: number, formatValue: typeof format): Layout {
   const height = config.height ?? 276;
-  const total = config.items.reduce((sum, item) => sum + Math.max(0, item.value), 0);
+  const total = stripTotal(config.items);
+  const requestedSelection = config.selected ?? -1;
+  const selected = config.items[requestedSelection] ? requestedSelection : -1;
   const shapes: Shape[] = [];
   const marks: Mark[] = [];
   let x = 0;
   config.items.forEach((item, i) => {
-    const share = total ? Math.max(0, item.value) / total : 0;
+    const share = stripShare(item.value, total);
     const w = width * share;
-    const fill = item.color ?? (i === config.selected ? color : tint(33));
-    if (w > 0) shapes.push(shape("rect", { x, y: 0, width: w, height, fill, stroke: "var(--viz-surface)" }));
-    marks.push({ label: item.label, x: x + w / 2, y: height / 2, values: [[item.label, formatValue(item.value)], ["Share", formatValue(share, { format: "percent", digits: 1 })]] });
+    const fill = stripFill(item, i, selected);
+    if (w > 0) shapes.push(shape("rect", {
+      x, y: 0, width: w, height, fill, stroke: "var(--viz-surface)", "stroke-width": 2,
+      class: "viz-strip-segment", "data-strip-index": i,
+    }));
+    marks.push({
+      label: item.label, x: x + w / 2, y: height / 2,
+      values: [[item.label, formatValue(item.value)], ["Share", formatValue(share, shareFormat)]],
+      colors: [fill, fill],
+    });
     x += w;
   });
   return { width, height, shapes, marks, clip: { x: 0, y: 0, width, height, rx: 8 } };
@@ -298,7 +338,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   let width = -1;
   let active = -1;
   let pinned = false;
+  let linePointer: number | null = null;
+  let stripSelection = initial.type === "strip" ? initial.selected ?? -1 : -1;
   let layout: Layout;
+  let stripRows: HTMLButtonElement[] = [];
   const card = element("section", "viz-card");
   const header = element("header", "viz-heading");
   const chartBody = element("div", "viz-body");
@@ -306,6 +349,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   const tooltip = element("div", "viz-tooltip");
   const clipId = "viz-strip-clip-" + ++nextChartId;
   const svg = svgElement("svg", { role: "img" });
+  const lineMarkers = svgElement("g", { class: "viz-line-markers", "aria-hidden": "true", "pointer-events": "none" });
   tooltip.hidden = true;
   tooltip.setAttribute("role", "status");
   scroller.tabIndex = 0;
@@ -316,15 +360,24 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   chartBody.append(scroller);
   host.replaceChildren(card);
 
+  function isLine() {
+    return config.type === "line" || config.type === "line-column";
+  }
+
   function display(index: number) {
     active = index;
     const mark = layout?.marks[index];
+    const points = pinned && "series" in config && config.marker !== false ? mark?.points ?? [] : [];
+    lineMarkers.replaceChildren(...points.map(point => svgElement("circle", {
+      cx: mark.x, cy: point.y, r: 4, fill: point.color, stroke: "var(--viz-surface)", "stroke-width": 1,
+    })));
     tooltip.hidden = !mark;
     if (!mark) return;
     const title = element("strong");
     title.textContent = mark.label;
-    const rows = mark.values.map(([name, value]) => {
-      const row = element("div");
+    const rows = mark.values.map(([name, value], i) => {
+      const row = element("div", "viz-tooltip-row");
+      row.style.setProperty("--series-color", mark.colors[i]);
       row.textContent = name + "  " + value;
       return row;
     });
@@ -340,8 +393,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const nextWidth = Math.floor(scroller.clientWidth);
     if (nextWidth < 96 || width === nextWidth) return;
     width = nextWidth;
-    pinned = false;
-    layout = chartLayout(config, width, options);
+    const keepLineSelection = pinned && isLine();
+    pinned = keepLineSelection;
+    const nextConfig = config.type === "strip" ? { ...config, selected: stripSelection } : config;
+    layout = chartLayout(nextConfig, width, options);
     svg.setAttribute("viewBox", "0 0 " + layout.width + " " + layout.height);
     svg.setAttribute("width", String(layout.width));
     svg.setAttribute("height", String(layout.height));
@@ -359,8 +414,25 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       svg.replaceChildren(clip, group);
     } else {
       svg.replaceChildren(...marks);
+      if (isLine()) svg.append(lineMarkers);
     }
-    display(-1);
+    display(keepLineSelection ? active : -1);
+  }
+
+  function selectStrip(index: number) {
+    if (config.type !== "strip" || !config.items[index] || !layout?.marks[index]) return;
+    stripSelection = index;
+    const items = config.items;
+    svg.querySelectorAll("[data-strip-index]").forEach(segment => {
+      const i = Number(segment.getAttribute("data-strip-index"));
+      segment.setAttribute("fill", stripFill(items[i], i, index));
+    });
+    items.forEach((item, i) => {
+      const fill = stripFill(item, i, index);
+      layout.marks[i].colors = [fill, fill];
+      stripRows[i]?.setAttribute("aria-pressed", String(i === index));
+    });
+    display(index);
   }
 
   function render() {
@@ -390,22 +462,30 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     }
     chartBody.querySelector(".viz-legend")?.remove();
     delete chartBody.dataset.legendPosition;
-    header.querySelector(".viz-series")?.remove();
+    stripRows = [];
     if (config.type === "strip" && config.legend !== false) {
       chartBody.dataset.legendPosition = config.legendPosition ?? "right";
       const legend = element("div", "viz-legend");
-      config.items.forEach((item, i) => {
+      const total = stripTotal(config.items);
+      const formatValue = options.formatValue ?? format;
+      stripRows = config.items.map((item, i) => {
         const button = element("button");
         const name = element("span");
         const value = element("span");
+        const share = element("span");
+        button.type = "button";
+        button.setAttribute("aria-pressed", String(i === stripSelection));
+        button.style.setProperty("--strip-color", item.color ?? color);
         name.textContent = item.label;
-        value.textContent = (options.formatValue ?? format)(item.value);
-        button.append(name, value);
+        value.textContent = formatValue(item.value);
+        share.textContent = formatValue(stripShare(item.value, total), shareFormat);
+        button.append(name, value, share);
         button.addEventListener("focus", () => display(i));
         button.addEventListener("blur", () => display(-1));
-        button.addEventListener("click", () => display(i));
-        legend.append(button);
+        button.addEventListener("click", () => selectStrip(i));
+        return button;
       });
+      legend.append(...stripRows);
       chartBody.append(legend);
     } else if ("series" in config && config.series.length > 1 && config.type !== "line-column") {
       const legend = element("div", "viz-series");
@@ -421,37 +501,104 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     draw();
   }
   function closest(event: PointerEvent) {
+    if (!layout) return -1;
+    if (config.type === "strip") {
+      const segment = (event.target as Element).closest("[data-strip-index]");
+      return segment ? Number(segment.getAttribute("data-strip-index")) : -1;
+    }
     const bounds = svg.getBoundingClientRect();
     const x = event.clientX - bounds.left;
     const y = event.clientY - bounds.top;
     let closest = -1;
     let distance = Infinity;
     layout.marks.forEach((mark, i) => {
+      if (mark.points?.length === 0) return;
       const d = Math.abs(mark.x - x) + (config.type === "heatmap" ? Math.abs(mark.y - y) : 0);
       if (d < distance) { closest = i; distance = d; }
     });
     return closest;
   }
-  svg.addEventListener("pointermove", event => { if (!pinned && event.pointerType !== "touch") display(closest(event)); });
-  svg.addEventListener("pointerup", event => { pinned = true; display(closest(event)); });
-  svg.addEventListener("pointerleave", () => { if (!pinned) display(-1); });
-  scroller.addEventListener("blur", () => { pinned = false; display(-1); });
+  svg.addEventListener("pointerdown", event => {
+    if (!isLine() || !event.isPrimary || event.button !== 0) return;
+    const index = closest(event);
+    if (index < 0) return;
+    linePointer = event.pointerId;
+    svg.setPointerCapture(event.pointerId);
+  });
+  svg.addEventListener("pointermove", event => {
+    if (linePointer === event.pointerId) {
+      pinned = true;
+      display(closest(event));
+    } else if (!pinned && event.pointerType !== "touch") {
+      display(closest(event));
+    }
+  });
+  svg.addEventListener("pointerup", event => {
+    if (!event.isPrimary || event.button !== 0) return;
+    const index = closest(event);
+    if (config.type === "strip") selectStrip(index);
+    else if (index >= 0) {
+      pinned = true;
+      display(index);
+    }
+  });
+  svg.addEventListener("lostpointercapture", () => { linePointer = null; });
+  svg.addEventListener("pointerleave", () => {
+    if (!pinned) display(-1);
+  });
+  scroller.addEventListener("blur", () => {
+    if (pinned && isLine()) return;
+    pinned = false;
+    display(-1);
+  });
   scroller.addEventListener("keydown", event => {
-    if (event.key === "Escape") { pinned = false; display(-1); return; }
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key) || !layout.marks.length) return;
+    if (event.key === "Escape") {
+      pinned = false;
+      display(-1);
+      return;
+    }
+    if (!layout?.marks.length) return;
+    if (config.type === "strip" && active >= 0 && [" ", "Enter"].includes(event.key)) {
+      event.preventDefault();
+      selectStrip(active);
+      return;
+    }
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
-    const last = layout.marks.length - 1;
-    const index = event.key === "Home" ? 0 : event.key === "End" ? last
-      : Math.max(0, Math.min(last, active + (event.key === "ArrowLeft" ? -1 : 1)));
+    const indexes = layout.marks.flatMap((mark, i) => mark.points?.length === 0 ? [] : [i]);
+    const last = indexes.length - 1;
+    if (last < 0) return;
+    const position = event.key === "Home" ? 0 : event.key === "End" ? last
+      : Math.max(0, Math.min(last, indexes.indexOf(active) + (event.key === "ArrowLeft" ? -1 : 1)));
+    const index = indexes[position];
     const x = layout.marks[index].x;
     if (x < scroller.scrollLeft || x > scroller.scrollLeft + scroller.clientWidth) scroller.scrollLeft = x - scroller.clientWidth / 2;
+    if (isLine()) pinned = true;
     display(index);
   });
   const observer = new ResizeObserver(draw);
   render();
   observer.observe(scroller);
   return {
-    update(next: ChartConfig) { config = next; render(); },
+    update(next: ChartConfig) {
+      if (next.type === "strip") {
+        const previous = config.type === "strip" ? config : undefined;
+        const defaultItem = next.items[next.selected ?? -1];
+        const selectedItem = previous?.items[stripSelection];
+        const previousDefault = previous?.items[previous.selected ?? -1];
+        const movedIndex = selectedItem && defaultItem === previousDefault ? next.items.indexOf(selectedItem) : -1;
+        stripSelection = movedIndex >= 0 ? movedIndex : next.selected ?? -1;
+      }
+      if (pinned && "series" in config && "series" in next) {
+        pinned = next.type === config.type && next.labels[active] === config.labels[active]
+          && next.series.length === config.series.length
+          && config.series.every((series, i) => next.series[i].values[active] === series.values[active]);
+      } else {
+        pinned = false;
+      }
+      config = next;
+      render();
+    },
     getData() {
       const data = layout ?? chartLayout(config, 320, options);
       return data.marks.flatMap(mark => mark.values.map(([series, value]) => ({ label: mark.label, series, value })));
