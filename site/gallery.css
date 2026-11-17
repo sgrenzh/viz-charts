@@ -431,6 +431,8 @@ dialog::backdrop { background: #0009; }
 }
 .chart-toolbar .dropdown-trigger:hover { background: var(--viz-surface); }
 .chart-toolbar .dropdown-trigger svg { color: var(--viz-muted); }
+.chart-toolbar .dropdown-menu { box-shadow: 0 3px 12px #0002; }
+.chart-toolbar .dropdown-menu button { height: var(--chart-menu-row-height, 40px); min-height: 0; }
 .chart-theme .dropdown-trigger:focus-visible { outline-color: var(--viz-page-ink); }
 .preview-actions .icon-button svg { stroke-width: 1.5; }
 

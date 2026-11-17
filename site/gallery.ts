@@ -162,6 +162,9 @@ function createDropdown(id: string, onSelect: (index: number) => void) {
   function place() {
     if (menu.hidden) return;
     const bounds = trigger.getBoundingClientRect();
+    if (root.classList.contains("chart-toolbar")) {
+      menu.style.setProperty("--chart-menu-row-height", `${bounds.height}px`);
+    }
     menu.style.minWidth = `${Math.min(bounds.width, window.innerWidth - 16)}px`;
     const active = menu.children[selected] as HTMLElement | undefined;
     const top = bounds.top + (bounds.height - (active?.offsetHeight ?? 0)) / 2 - (active?.offsetTop ?? 0);
