@@ -160,7 +160,9 @@ button:active { transform: scale(.97); transition-duration: 160ms, 160ms, 75ms; 
   padding: calc(var(--tile-action-size) + var(--tile-action-inset) + 12px) var(--tile-inset);
   border-radius: 28px;
   background: var(--gallery-tile);
+  cursor: pointer;
 }
+.gallery-tile > .chart-theme { cursor: default; }
 .tile-actions {
   position: absolute;
   right: var(--tile-action-inset);
@@ -236,7 +238,7 @@ dialog::backdrop { background: #0009; }
 .site-settings-options { padding: 16px 20px 20px; }
 .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: none; padding: var(--preview-options-padding) var(--preview-options-padding) 12px; }
-.preview-heading h2 { margin: 0; font-size: var(--viz-type-heading-size); font-weight: var(--viz-type-semibold); line-height: var(--viz-type-heading-line); }
+.preview-heading h2 { margin: 0; font-size: var(--viz-type-subheading-size); font-weight: var(--viz-type-semibold); line-height: var(--viz-type-subheading-line); }
 .preview-fields {
   flex: 1 1 auto;
   min-block-size: 0;
@@ -351,7 +353,7 @@ dialog::backdrop { background: #0009; }
   gap: var(--pill-icon-gap);
   width: 100%;
   min-height: 44px;
-  padding: 8px;
+  padding: 8px 16px;
   border: 0;
   background: transparent;
   color: var(--ink);

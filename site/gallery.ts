@@ -349,6 +349,10 @@ const charts = presets.map(({ layout, formatHeadline }, index) => {
   settingsButton.setAttribute("aria-haspopup", "dialog");
   settingsButton.setAttribute("aria-controls", preview.id);
   settingsButton.addEventListener("click", () => showPreview(index));
+  card.addEventListener("click", event => {
+    const target = event.target as Node;
+    if (!host.contains(target) && !settingsButton.contains(target)) showPreview(index);
+  });
   const { codeButton, range, refresh } = createChartControls(index);
   const actions = document.createElement("div");
   actions.className = "tile-actions";
