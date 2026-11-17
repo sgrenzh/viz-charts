@@ -258,6 +258,27 @@ siteSettingsButton.addEventListener("click", () => {
   siteSettings.showModal();
 });
 
+function syncSegmentIndicator(segment: HTMLElement) {
+  const selected = segment.querySelector("input:checked")?.parentElement;
+  if (!selected?.offsetWidth) {
+    segment.removeAttribute("data-indicator");
+    return;
+  }
+  segment.style.setProperty("--indicator-x", `${selected.offsetLeft}px`);
+  segment.style.setProperty("--indicator-width", `${selected.offsetWidth}px`);
+  segment.setAttribute("data-indicator", "");
+}
+
+const segmentResize = new ResizeObserver(entries => {
+  const segments = new Set(entries.map(({ target }) => target.closest<HTMLElement>(".segmented")));
+  segments.forEach(segment => { if (segment) syncSegmentIndicator(segment); });
+});
+document.querySelectorAll<HTMLElement>(".segmented").forEach(segment => {
+  segment.addEventListener("change", () => syncSegmentIndicator(segment));
+  segmentResize.observe(segment);
+  segment.querySelectorAll("label").forEach(label => segmentResize.observe(label));
+});
+
 function viewsFor(index: number) {
   const config = configs[index];
   if (config.type === "strip") return stripViews;
@@ -409,22 +430,36 @@ function previewConfig(index: number) {
   return { ...viewConfig(index), period: undefined };
 }
 
+function selectSegment(on: HTMLInputElement, checked: boolean) {
+  const selected = checked ? on : byId<HTMLInputElement>(`${on.id}-off`);
+  if (selected.checked) return;
+  selected.checked = true;
+  const segment = selected.closest<HTMLElement>(".segmented");
+  if (segment) syncSegmentIndicator(segment);
+}
+
+function onSegmentChange(on: HTMLInputElement, listener: () => void) {
+  on.addEventListener("change", listener);
+  byId<HTMLInputElement>(`${on.id}-off`).addEventListener("change", listener);
+}
+
 function syncPreview(index: number) {
   const config = configs[index];
   byId("preview-heading").textContent = chartTypeLabels[chartFamily(config)];
   byId("preview-range-label").textContent = config.type === "strip" ? "Sort by" : "Date range";
   const hasAxes = "series" in config;
   byId("axes").hidden = !hasAxes;
-  xAxis.checked = hasAxes && config.xAxis?.show !== false;
-  yAxis.checked = hasAxes && config.yAxis?.show !== false;
-  grid.checked = hasAxes && config.grid !== false;
-  byId("gradient-fill-field").hidden = config.type !== "line";
-  gradientFill.checked = config.type === "line" && config.gradientFill === true;
+  selectSegment(xAxis, hasAxes && config.xAxis?.show !== false);
+  selectSegment(yAxis, hasAxes && config.yAxis?.show !== false);
+  selectSegment(grid, hasAxes && config.grid !== false);
+  const hasLine = config.type === "line" || config.type === "line-column";
+  byId("gradient-fill-field").hidden = !hasLine;
+  selectSegment(gradientFill, hasLine && config.gradientFill === true);
   byId("legend-position-field").hidden = config.type !== "strip";
   legendPosition.value = config.type === "strip" ? config.legendPosition ?? "right" : "right";
   syncSelectDropdown(legendPosition);
   byId("show-volume-field").hidden = config.type !== "line-column";
-  showVolume.checked = config.type === "line-column" && config.showVolume !== false;
+  selectSegment(showVolume, config.type === "line-column" && config.showVolume !== false);
   updatePreviewFade();
 }
 
@@ -433,6 +468,8 @@ function syncPreviewAppearance(index: number) {
   chartPalette.value = appearance.palette ?? siteAppearance.palette;
   syncSelectDropdown(chartPalette);
   themeOptions.forEach(option => { option.checked = option.value === (appearance.theme ?? "site"); });
+  const segment = themeOptions[0]?.closest<HTMLElement>(".segmented");
+  if (segment) syncSegmentIndicator(segment);
   styleChartAppearance(previewHost, index);
 }
 
@@ -742,16 +779,16 @@ for (const dialog of [siteSettings, preview, editor, dataDialog]) {
     if (event.target === dialog || (dialog === preview && event.target === previewContent)) dismiss();
   });
 }
-[xAxis, yAxis, grid].forEach(control => control.addEventListener("change", applyControls));
-gradientFill.addEventListener("change", () => {
+[xAxis, yAxis, grid].forEach(control => onSegmentChange(control, applyControls));
+onSegmentChange(gradientFill, () => {
   const config = configs[previewIndex];
-  if (config?.type === "line") update({ ...config, gradientFill: gradientFill.checked });
+  if (config?.type === "line" || config?.type === "line-column") update({ ...config, gradientFill: gradientFill.checked });
 });
 legendPosition.addEventListener("change", () => {
   const config = configs[previewIndex];
   if (config?.type === "strip") update({ ...config, legendPosition: legendPosition.value as LegendPosition });
 });
-showVolume.addEventListener("change", () => {
+onSegmentChange(showVolume, () => {
   const config = configs[previewIndex];
   if (config?.type === "line-column") update({ ...config, showVolume: showVolume.checked });
 });
@@ -818,7 +855,7 @@ function readConfig(text: string): ChartConfig {
     if (parsed.type === "line-column" && parsed.showVolume !== undefined && typeof parsed.showVolume !== "boolean") {
       throw new Error("Show volume must be true or false.");
     }
-    if (parsed.type === "line" && parsed.gradientFill !== undefined && typeof parsed.gradientFill !== "boolean") {
+    if (parsed.type !== "column" && parsed.gradientFill !== undefined && typeof parsed.gradientFill !== "boolean") {
       throw new Error("Gradient fill must be true or false.");
     }
   } else {

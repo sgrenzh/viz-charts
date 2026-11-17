@@ -61,7 +61,7 @@ button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 :is(button, input, .segmented label) { -webkit-tap-highlight-color: transparent; }
 :is(button, .segmented label) { touch-action: manipulation; user-select: none; }
-:is(button, .segmented span) { transition: background-color 160ms ease, color 160ms ease, transform 180ms cubic-bezier(.2, .8, .25, 1); }
+button { transition: background-color 160ms ease, color 160ms ease, transform 180ms cubic-bezier(.2, .8, .25, 1); }
 :is(button, input, select, textarea):focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 
 .gallery-page { max-width: 1600px; padding: 16px clamp(12px, 3vw, 48px) 40px; margin-inline: auto; }
@@ -132,15 +132,14 @@ button { cursor: pointer; }
   padding: 0;
 }
 @media (hover: hover) {
-  button:hover, .segmented label:hover span { transform: translateY(-1px); }
+  button:hover { transform: translateY(-1px); }
   .chart-nav button:hover { background: var(--button-hover); }
   .chart-types button[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--ink) 88%, var(--panel)); }
 }
-:is(button:active, .segmented label:active span) { transform: scale(.97); transition-duration: 160ms, 160ms, 75ms; }
+button:active { transform: scale(.97); transition-duration: 160ms, 160ms, 75ms; }
 @media (prefers-reduced-motion: reduce) {
   .chart-nav::before,
-  :is(button, .segmented span) { transition: none; }
-  :is(button, .segmented label span) { transform: none !important; }
+  button { transition: none; transform: none !important; }
 }
 .gallery { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .gallery-tile {
@@ -217,7 +216,6 @@ dialog::backdrop { background: #0009; }
 .preview-options {
   --button: #d9d9d9;
   --button-hover: #cecece;
-  --switch-active-track: #b8b8b8;
   --preview-options-padding: clamp(16px, 3vw, 28px);
   display: flex;
   flex-direction: column;
@@ -226,7 +224,7 @@ dialog::backdrop { background: #0009; }
   max-block-size: calc(100dvh - 2 * var(--preview-spacing));
   overflow: hidden;
 }
-:root[data-theme="dark"] .preview-options { --button: #2e2e2e; --button-hover: #3a3a3a; --switch-active-track: #696969; }
+:root[data-theme="dark"] .preview-options { --button: #2e2e2e; --button-hover: #3a3a3a; }
 #site-settings { max-width: 420px; }
 .site-settings-options { padding: 16px 20px 20px; }
 .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -278,38 +276,30 @@ dialog::backdrop { background: #0009; }
   white-space: nowrap;
 }
 .dropdown-trigger span { overflow: hidden; text-overflow: ellipsis; }
-.segmented { display: flex; block-size: var(--pill-size); gap: 2px; padding: 3px; }
-.segmented label { position: relative; cursor: pointer; }
-.segmented input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
-.segmented span { display: flex; align-items: center; block-size: 100%; padding-inline: 17px; border-radius: 999px; white-space: nowrap; }
-@media (hover: hover) { .segmented label:hover span { background: var(--button-hover); color: var(--ink); } }
-.segmented input:checked + span { background: var(--button-selected); color: var(--ink); }
-.segmented input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 1px; }
-.preview-plot-options { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
-.switch-row { position: relative; min-block-size: var(--pill-size); cursor: pointer; touch-action: manipulation; }
-.switch-row input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; }
-.switch-track {
-  --switch-inset: 4px;
-  --switch-thumb: calc(var(--pill-size) - 2 * var(--switch-inset));
-  position: relative;
-  flex: none;
-  inline-size: 64px;
-  block-size: var(--pill-size);
-  border-radius: 999px;
-  background: var(--button);
-}
-.switch-track::before {
+.segmented { position: relative; display: flex; block-size: var(--pill-size); gap: 2px; padding: 3px; }
+.segmented[data-indicator]::before {
   content: "";
   position: absolute;
-  inset-block: var(--switch-inset);
-  inset-inline-start: var(--switch-inset);
-  inline-size: var(--switch-thumb);
-  border-radius: 50%;
-  background: var(--muted);
+  inset-block: 3px;
+  left: 0;
+  width: var(--indicator-width);
+  transform: translateX(var(--indicator-x));
+  border-radius: 999px;
+  background: var(--button-selected);
+  pointer-events: none;
+  transition: transform 150ms ease-out, width 150ms ease-out;
 }
-.switch-row input:checked + .switch-track { background: var(--switch-active-track); }
-.switch-row input:checked + .switch-track::before { inset-inline-start: calc(100% - var(--switch-thumb) - var(--switch-inset)); background: #000; }
-.switch-row input:focus-visible + .switch-track { outline: 2px solid var(--ink); outline-offset: 2px; }
+.segmented label { position: relative; cursor: pointer; }
+.segmented input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.segmented span { display: flex; align-items: center; block-size: 100%; padding-inline: 17px; border-radius: 999px; white-space: nowrap; transition: background-color 160ms ease, color 160ms ease; }
+@media (hover: hover) { .segmented label:hover span { background: var(--button-hover); color: var(--ink); } }
+.segmented input:checked + span { background: var(--button-selected); color: var(--ink); }
+.segmented[data-indicator] input:checked + span { background: transparent; }
+.segmented input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) {
+  .segmented[data-indicator]::before, .segmented span { transition: none; }
+}
+.preview-plot-options { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
 .preview-actions {
   position: relative;
   flex: none;

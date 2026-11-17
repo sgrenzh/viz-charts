@@ -264,7 +264,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
       const d = line<number | null>().defined(v => v !== null).x((_, j) => center(j)).y(v => y(v ?? 0))(plotted);
       const stroke = getColor(series, i);
       if (d) shapes.push(shape("path", { d, fill: "none", stroke, "stroke-width": 1.5, "stroke-linejoin": "round" }));
-      if (config.type === "line" && config.gradientFill && i === 0) {
+      if (config.gradientFill && i === 0) {
         const path = area<number | null>().defined(v => v !== null).x((_, j) => center(j)).y0(lineBottom).y1(v => y(v ?? 0))(plotted);
         if (path) lineFill = { path, color: stroke, top, bottom: lineBottom };
       }

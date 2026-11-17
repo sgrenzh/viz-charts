@@ -55,11 +55,41 @@
             <div class="option-row"><span id="preview-range-label">Date range</span><div id="preview-range"></div></div>
             <div class="option-row" id="legend-position-field" hidden><span id="legend-position-label">List position</span><select id="legend-position" aria-labelledby="legend-position-label"><option value="below">Below</option><option value="right" selected>Right</option><option value="left">Left</option></select></div>
             <fieldset id="axes" class="preview-plot-options" aria-label="Plot options">
-              <label class="option-row switch-row">Horizontal axis <input id="axis-x" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label>
-              <label class="option-row switch-row">Vertical axis <input id="axis-y" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label>
-              <label class="option-row switch-row">Gridlines <input id="grid" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label>
-              <label class="option-row switch-row" id="gradient-fill-field" hidden>Gradient fill <input id="gradient-fill" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label>
-              <label class="option-row switch-row" id="show-volume-field" hidden>Show volume <input id="show-volume" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label>
+              <div class="option-row">
+                <span id="axis-x-label">Horizontal axis</span>
+                <div class="segmented" role="radiogroup" aria-labelledby="axis-x-label">
+                  <label><input id="axis-x" type="radio" name="axis-x" value="on"><span>On</span></label>
+                  <label><input id="axis-x-off" type="radio" name="axis-x" value="off"><span>Off</span></label>
+                </div>
+              </div>
+              <div class="option-row">
+                <span id="axis-y-label">Vertical axis</span>
+                <div class="segmented" role="radiogroup" aria-labelledby="axis-y-label">
+                  <label><input id="axis-y" type="radio" name="axis-y" value="on"><span>On</span></label>
+                  <label><input id="axis-y-off" type="radio" name="axis-y" value="off"><span>Off</span></label>
+                </div>
+              </div>
+              <div class="option-row">
+                <span id="grid-label">Gridlines</span>
+                <div class="segmented" role="radiogroup" aria-labelledby="grid-label">
+                  <label><input id="grid" type="radio" name="grid" value="on"><span>On</span></label>
+                  <label><input id="grid-off" type="radio" name="grid" value="off"><span>Off</span></label>
+                </div>
+              </div>
+              <div class="option-row" id="gradient-fill-field" hidden>
+                <span id="gradient-fill-label">Gradient fill</span>
+                <div class="segmented" role="radiogroup" aria-labelledby="gradient-fill-label">
+                  <label><input id="gradient-fill" type="radio" name="gradient-fill" value="on"><span>On</span></label>
+                  <label><input id="gradient-fill-off" type="radio" name="gradient-fill" value="off"><span>Off</span></label>
+                </div>
+              </div>
+              <div class="option-row" id="show-volume-field" hidden>
+                <span id="show-volume-label">Show volume</span>
+                <div class="segmented" role="radiogroup" aria-labelledby="show-volume-label">
+                  <label><input id="show-volume" type="radio" name="show-volume" value="on"><span>On</span></label>
+                  <label><input id="show-volume-off" type="radio" name="show-volume" value="off"><span>Off</span></label>
+                </div>
+              </div>
             </fieldset>
           </div>
           <div id="preview-controls" class="preview-actions"></div>
