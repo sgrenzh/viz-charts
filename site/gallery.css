@@ -17,6 +17,7 @@
   --border: #d7d7d7;
   --pill-size: 40px;
   --pill-cap: calc(var(--pill-size) / 2);
+  --pill-icon-gap: 6px;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -86,6 +87,7 @@ button { cursor: pointer; }
   background: var(--button);
   color: var(--ink);
   white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
   transition: background-color 160ms ease, color 160ms ease, transform 180ms cubic-bezier(.2, .8, .25, 1);
 }
 .chart-types button {
@@ -93,7 +95,6 @@ button { cursor: pointer; }
   padding-inline: 16px;
   font-weight: var(--viz-type-medium);
   letter-spacing: var(--pill-label-letter-spacing);
-  -webkit-tap-highlight-color: transparent;
 }
 .chart-nav button:focus-visible { outline-offset: 2px; }
 .chart-types button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
@@ -105,7 +106,7 @@ button { cursor: pointer; }
   width: var(--pill-size);
   height: var(--pill-size);
   padding: 0;
-  box-shadow: 0 0 0 var(--settings-gap) var(--gallery-background), -8px 0 10px 4px var(--gallery-background), 0 3px 10px 3px #0003;
+  box-shadow: 0 3px 10px 3px #0004;
 }
 @media (hover: hover) {
   .chart-nav button:hover { background: var(--button-hover); transform: translateY(-1px); }
@@ -119,7 +120,7 @@ button { cursor: pointer; }
 }
 .gallery { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .gallery-tile {
-  --tile-inset: clamp(24px, calc(2vw + 16px), 48px);
+  --tile-inset: clamp(28px, calc(2vw + 20px), 52px);
   position: relative;
   display: grid;
   align-content: center;
@@ -127,7 +128,8 @@ button { cursor: pointer; }
   min-width: 0;
   min-height: 352px;
   --tile-action-inset: 16px;
-  padding: calc(var(--pill-size) + var(--tile-action-inset) + 8px) var(--tile-inset);
+  --tile-action-size: calc(var(--pill-size) + 4px);
+  padding: calc(var(--tile-action-size) + var(--tile-action-inset) + 12px) var(--tile-inset);
   border-radius: 28px;
   background: var(--gallery-tile);
 }
@@ -138,7 +140,12 @@ button { cursor: pointer; }
   display: flex;
   gap: 4px;
 }
-.tile-actions .icon-button { background: var(--tile-action-fill); }
+.tile-actions .icon-button {
+  width: var(--tile-action-size);
+  height: var(--tile-action-size);
+  background: var(--tile-action-fill);
+  color: var(--muted);
+}
 .tile-actions .icon-button:hover { background: var(--tile-action-hover); }
 :is(.tile-actions, .chart-toolbar, .close-button, .select-pill, .chart-range, .site-settings-trigger) svg {
   fill: none;
@@ -172,7 +179,7 @@ dialog::backdrop { background: #0009; }
 .preview-heading, .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .preview-heading { margin-bottom: 16px; }
 .preview-heading h2 { margin: 0; font-size: var(--viz-type-heading-size); font-weight: var(--viz-type-semibold); line-height: var(--viz-type-heading-line); }
-.icon-button, .actions button, .option-row select, .segmented {
+.icon-button, .actions button, .select-pill, .segmented {
   border: 0;
   border-radius: 999px;
   background: var(--button);
@@ -201,23 +208,30 @@ dialog::backdrop { background: #0009; }
   color: var(--muted);
 }
 .theme-row { flex-wrap: wrap; }
-.select-pill { position: relative; min-inline-size: 0; max-inline-size: 72%; color: var(--ink); }
-.select-pill select {
-  appearance: none;
-  inline-size: 100%;
+.select-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pill-icon-gap);
+  min-inline-size: 0;
+  max-inline-size: 100%;
   min-block-size: var(--pill-size);
-  padding: 8px calc(var(--pill-cap) + 24px) 8px var(--pill-cap);
-  text-overflow: ellipsis;
+  padding-inline: var(--pill-cap);
+  white-space: nowrap;
 }
-.select-pill svg {
+.select-pill:hover { background: var(--button-hover); }
+.select-pill:has(select:focus-visible) { outline: 2px solid var(--ink); outline-offset: 3px; }
+.select-pill-label { overflow: hidden; text-overflow: ellipsis; }
+.select-pill select {
   position: absolute;
-  inset-inline-end: var(--pill-cap);
-  inset-block-start: 50%;
-  width: 18px;
-  height: 18px;
-  translate: 0 -50%;
-  pointer-events: none;
+  z-index: 1;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
+.select-pill svg { width: 18px; height: 18px; flex: none; }
 .segmented { display: flex; block-size: var(--pill-size); gap: 2px; padding: 3px; }
 .segmented label { position: relative; cursor: pointer; }
 .segmented input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
@@ -228,7 +242,7 @@ dialog::backdrop { background: #0009; }
 .preview-actions { display: flex; justify-content: flex-end; margin-top: 20px; }
 .chart-toolbar { display: flex; align-items: center; gap: 6px; }
 .chart-range { --menu-row-size: 44px; position: relative; display: grid; }
-.range-trigger { width: auto; gap: 6px; justify-content: space-between; padding: 8px var(--pill-cap); white-space: nowrap; }
+.range-trigger { width: auto; gap: var(--pill-icon-gap); padding: 8px var(--pill-cap); white-space: nowrap; }
 .range-menu {
   position: absolute;
   z-index: 2;
@@ -245,8 +259,7 @@ dialog::backdrop { background: #0009; }
 .range-menu button {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  gap: var(--pill-icon-gap);
   width: 100%;
   height: var(--menu-row-size);
   padding: 8px var(--pill-cap);
@@ -266,7 +279,8 @@ dialog::backdrop { background: #0009; }
 .dialog-content p { margin: 0 0 12px; color: var(--muted); }
 .dialog-content label { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; margin-bottom: 12px; }
 .dialog-content label:has(:is(input[type="text"], textarea)) { grid-template-columns: minmax(0, 1fr); }
-.dialog-content :is(input[type="text"], select, textarea) { min-height: 36px; border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; background: var(--page); color: inherit; }
+.dialog-content :is(input[type="text"], textarea) { min-height: 36px; border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; background: var(--page); color: inherit; }
+.dialog-content .select-pill { justify-self: end; }
 .dialog-content textarea { width: 100%; resize: vertical; font: var(--viz-type-regular) var(--viz-type-label-size)/var(--viz-type-body-line) ui-monospace, monospace; }
 .dialog-content :is(input[type="color"], input[type="checkbox"]) { margin: 0; }
 .dialog-content fieldset { padding: 8px 12px 0; margin: 0 0 12px; border: 1px solid var(--border); border-radius: 12px; }

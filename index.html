@@ -25,9 +25,8 @@
         <fieldset class="theme-row" aria-label="Site theme">
           <span aria-hidden="true">Theme</span>
           <div class="segmented">
-            <label><input type="radio" name="site-theme" value="light"><span>Light</span></label>
+            <label><input type="radio" name="site-theme" value="light" checked><span>Light</span></label>
             <label><input type="radio" name="site-theme" value="dark"><span>Dark</span></label>
-            <label><input type="radio" name="site-theme" value="system" checked><span>System</span></label>
           </div>
         </fieldset>
         <label class="option-row">Color scheme <span class="select-pill"><select id="site-palette"><option value="monochrome">Monochrome</option><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option></select></span></label>
@@ -65,7 +64,7 @@
         <label>Chart accent <input id="accent" type="color"></label>
         <label>Font family <input id="font" type="text" placeholder="Allo"></label>
         <label id="legend-position-field" hidden>List position
-          <select id="legend-position"><option value="below">Below</option><option value="right" selected>Right</option><option value="left">Left</option></select>
+          <span class="select-pill"><select id="legend-position"><option value="below">Below</option><option value="right" selected>Right</option><option value="left">Left</option></select></span>
         </label>
         <fieldset id="axes"><legend>Plot options</legend>
           <label>Horizontal axis <input id="axis-x" type="checkbox"></label>

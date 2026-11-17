@@ -122,12 +122,26 @@ function button(name: string, iconName: keyof typeof icons) {
   control.append(icon(iconName));
   return control;
 }
-document.querySelectorAll(".select-pill").forEach(pill => pill.append(icon("chevron")));
+function syncSelectPill(select: HTMLSelectElement) {
+  const label = select.parentElement?.querySelector(".select-pill-label");
+  if (label) label.textContent = select.options[select.selectedIndex]?.textContent ?? "";
+}
+
+document.querySelectorAll<HTMLSelectElement>(".select-pill select").forEach(select => {
+  const label = document.createElement("span");
+  label.className = "select-pill-label";
+  label.setAttribute("aria-hidden", "true");
+  select.after(label, icon("chevron"));
+  syncSelectPill(select);
+  select.addEventListener("change", () => syncSelectPill(select));
+});
 const siteSettingsButton = byId("open-site-settings");
 siteSettingsButton.append(icon("settings"));
 siteSettingsButton.addEventListener("click", () => {
   sitePalette.value = siteAppearance.palette;
-  siteThemeOptions.forEach(option => { option.checked = option.value === siteAppearance.theme; });
+  syncSelectPill(sitePalette);
+  const theme = isDark(siteAppearance.theme) ? "dark" : "light";
+  siteThemeOptions.forEach(option => { option.checked = option.value === theme; });
   siteSettings.showModal();
 });
 
@@ -315,12 +329,14 @@ function previewConfig(index: number) {
 function syncPreview(index: number) {
   byId("preview-heading").textContent = configs[index].title;
   byId("preview-range-label").textContent = configs[index].type === "strip" ? "Sort by" : "Date range";
-  example.selectedOptions[0].textContent = configs[index].title;
+  example.options[example.selectedIndex].textContent = configs[index].title;
+  syncSelectPill(example);
 }
 
 function syncPreviewAppearance(index: number) {
   const appearance = appearances[index];
   chartPalette.value = appearance.palette ?? "site";
+  syncSelectPill(chartPalette);
   themeOptions.forEach(option => { option.checked = option.value === (appearance.theme ?? "site"); });
   styleChartAppearance(previewHost, index);
 }
@@ -449,6 +465,7 @@ function sync() {
   grid.checked = hasAxes && config.grid !== false;
   byId("legend-position-field").hidden = config.type !== "strip";
   legendPosition.value = config.type === "strip" ? config.legendPosition ?? "right" : "right";
+  syncSelectPill(legendPosition);
   byId("show-volume-field").hidden = config.type !== "line-column";
   showVolume.checked = config.type === "line-column" && config.showVolume !== false;
   source.value = JSON.stringify(config, null, 2);
