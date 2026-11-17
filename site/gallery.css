@@ -63,19 +63,41 @@ button { cursor: pointer; }
 .gallery-page { max-width: 1600px; padding: 16px clamp(12px, 3vw, 48px) 40px; margin-inline: auto; }
 .chart-nav {
   --settings-gap: 4px;
+  --settings-space: calc(var(--pill-size) + var(--settings-gap) + 4px);
+  --settings-fade-width: 28px;
   position: relative;
   isolation: isolate;
   margin: 0 -4px 16px;
 }
+.chart-nav::before,
+.chart-nav::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset-block: 0;
+}
+.chart-nav::before {
+  inset-inline-end: var(--settings-space);
+  inline-size: var(--settings-fade-width);
+  background: linear-gradient(to right, transparent, var(--gallery-background));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+.chart-nav.can-scroll-right::before { opacity: 1; }
+.chart-nav::after {
+  inset-inline-end: 0;
+  inline-size: var(--settings-space);
+  background: var(--gallery-background);
+}
 .chart-types {
-  --settings-space: calc(var(--pill-size) + var(--settings-gap) + 4px);
   display: flex;
   gap: 8px;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
   padding: 4px;
   padding-inline-end: var(--settings-space);
-  scroll-padding-inline-end: var(--settings-space);
+  scroll-padding-inline-end: calc(var(--settings-space) + var(--settings-fade-width));
   scrollbar-width: none;
 }
 .chart-nav button {
@@ -100,22 +122,24 @@ button { cursor: pointer; }
 .chart-types button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
 .chart-nav .site-settings-trigger {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   inset-block-start: 4px;
   inset-inline-end: 4px;
   width: var(--pill-size);
   height: var(--pill-size);
   padding: 0;
-  box-shadow: 0 3px 10px 3px #0004;
 }
 @media (hover: hover) {
   .chart-nav button:hover { background: var(--button-hover); transform: translateY(-1px); }
   .chart-types button[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--ink) 88%, var(--panel)); }
 }
+.chart-types button:active { transform: scale(.97); transition-duration: 160ms, 160ms, 75ms; }
 .chart-nav .site-settings-trigger:active { transform: scale(.96); }
 @media (prefers-reduced-motion: reduce) {
+  .chart-nav::before,
   .chart-nav button { transition: none; }
   .chart-nav button:hover,
+  .chart-types button:active,
   .chart-nav .site-settings-trigger:active { transform: none; }
 }
 .gallery { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: start; }

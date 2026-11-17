@@ -3,6 +3,7 @@ import { presets } from "./presets.js";
 
 const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const gallery = byId("gallery");
+const chartTypes = byId("chart-types");
 const siteSettings = byId<HTMLDialogElement>("site-settings");
 const sitePalette = byId<HTMLSelectElement>("site-palette");
 const siteThemeOptions = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="site-theme"]'));
@@ -311,9 +312,20 @@ const filters = Object.entries({ all: "All", ...familyLabels }).map(([family, la
     for (const filter of filters) filter.pill.setAttribute("aria-pressed", String(filter.family === activeFamily));
     charts.forEach((chart, i) => { chart.card.hidden = activeFamily !== "all" && chartFamily(configs[i]) !== activeFamily; });
   });
-  byId("chart-types").append(pill);
+  chartTypes.append(pill);
   return { family, pill };
 });
+
+function updateFilterFade() {
+  const remaining = chartTypes.scrollWidth - chartTypes.clientWidth - chartTypes.scrollLeft;
+  chartTypes.parentElement?.classList.toggle("can-scroll-right", remaining > 1);
+}
+
+chartTypes.addEventListener("scroll", updateFilterFade, { passive: true });
+const filterResize = new ResizeObserver(updateFilterFade);
+filterResize.observe(chartTypes);
+void document.fonts?.ready.then(updateFilterFade);
+updateFilterFade();
 
 let previewIndex = -1;
 let detail: ReturnType<typeof mountChart> | undefined;
