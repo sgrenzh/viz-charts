@@ -258,13 +258,13 @@ siteSettingsButton.addEventListener("click", () => {
 });
 
 function syncSegmentIndicator(segment: HTMLElement) {
-  const selected = segment.querySelector("input:checked")?.parentElement;
-  if (!selected?.offsetWidth) {
+  const selected = segment.querySelector("input:checked")?.parentElement?.getBoundingClientRect();
+  if (!selected?.width) {
     segment.removeAttribute("data-indicator");
     return;
   }
-  segment.style.setProperty("--indicator-x", `${selected.offsetLeft}px`);
-  segment.style.setProperty("--indicator-width", `${selected.offsetWidth}px`);
+  segment.style.setProperty("--indicator-x", `${selected.left - segment.getBoundingClientRect().left}px`);
+  segment.style.setProperty("--indicator-width", `${selected.width}px`);
   segment.setAttribute("data-indicator", "");
 }
 

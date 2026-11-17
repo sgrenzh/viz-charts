@@ -91,8 +91,10 @@ const muted = "var(--viz-muted)";
 const rules = "var(--viz-grid)";
 const axisLabelSize = 12;
 const dayMs = 86_400_000;
-const tint = (strength: number, base = color) => `color-mix(in srgb, ${base} ${strength}%, var(--viz-surface))`;
-const heatColors = [16, 33, 50, 66, 83, 100].map(strength => tint(strength));
+const tint = (strength: string, base = color) => `color-mix(in srgb, ${base} ${strength}, var(--viz-surface))`;
+const secondaryColor = tint("var(--viz-page-secondary-strength, 50%)");
+const heatColors = [16, 33, 50, 66, 83, 100].map(strength =>
+  tint(`calc(${strength}% + ${100 - strength}% * var(--viz-page-heatmap-lift, 0))`));
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string) {
   const node = document.createElement(tag);
@@ -221,7 +223,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
   if (showX && config.xAxis?.label) shapes.push(label((left + right) / 2, height - 1, config.xAxis.label, "middle"));
   if (showY && axisTitle) shapes.push(label(right + labelGap, top, axisTitle));
 
-  const getColor = (series: Series, i: number) => series.color ?? (combo && i === 1 ? "#C8C7CB" : i ? tint(50) : color);
+  const getColor = (series: Series, i: number) => series.color ?? (combo && i === 1 ? "var(--viz-volume, #C8C7CB)" : i ? secondaryColor : color);
   let lineFill: LineFill | undefined;
   if (column) {
     const start = indexes.map(() => ({ pos: 0, neg: 0 }));
@@ -238,7 +240,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
         const barHeight = Math.abs(y(base) - endY);
         const x = center(i) - w * groups / 2 + (stack ? 0 : s * w);
         const fill = getColor(series, s);
-        shapes.push(shape("rect", { x, y: barY, width: w, height: barHeight, rx: config.barRadius ?? 0, fill, opacity: config.barStyle === "cap" ? 0.12 : 1 }));
+        shapes.push(shape("rect", { x, y: barY, width: w, height: barHeight, rx: config.barRadius ?? 0, fill, opacity: config.barStyle === "cap" ? "var(--viz-page-cap-opacity, 0.12)" : 1 }));
         if (config.barStyle === "cap" && barHeight) {
           const cap = Math.min(2, barHeight);
           const r = Math.min(cap, w / 2);
@@ -339,7 +341,7 @@ function stripShare(value: number, total: number) {
 
 function stripFill(item: StripConfig["items"][number], index: number, selected: number) {
   const base = item.color ?? color;
-  return index === selected || (selected < 0 && item.color) ? base : tint(38, base);
+  return index === selected || (selected < 0 && item.color) ? base : tint("var(--viz-page-strip-strength, 38%)", base);
 }
 
 const shareFormat: AxisConfig = { format: "percent", digits: 1 };
@@ -384,7 +386,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   let pinned = false;
   let linePointer: number | null = null;
   let headline: HTMLParagraphElement | undefined;
-  let headlineMotion: Animation | undefined;
+  let previousHeadline = "";
   const reducedMotion = host.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)");
   let stripSelection = initial.type === "strip" ? initial.selected ?? -1 : -1;
   let layout: Layout;
@@ -414,26 +416,36 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     return config.type === "line" || config.type === "line-column";
   }
 
-  function displayHeadline(index: number, mark: Mark | undefined) {
+  function displayHeadline(index: number, mark: Mark | undefined, settle: boolean) {
     if (!headline || (config.type !== "line" && config.type !== "line-column")) return;
     const value = config.series[0]?.values[index];
     const text = mark && value != null && options.formatHeadline
       ? options.formatHeadline(value) : mark?.values[0]?.[1] ?? config.headline ?? "";
-    if (headline.textContent === text) return;
-    headlineMotion?.cancel();
-    headline.textContent = text;
-    if (!reducedMotion?.matches) {
-      headlineMotion = headline.animate?.([
-        { transform: "translateY(2px)", opacity: 0.78 },
-        { transform: "none", opacity: 1 },
-      ], { duration: 85, easing: "ease-out" });
+    const current = headline.textContent ?? "";
+    if (!settle && current === text) return;
+    const from = current === text ? previousHeadline : current;
+    previousHeadline = settle ? text : current;
+    if (!settle || reducedMotion?.matches || from === text) {
+      if (current !== text) headline.textContent = text;
+      return;
     }
+
+    const previousDigits = from.match(/\p{Decimal_Number}/gu) ?? [];
+    let position = previousDigits.length - (text.match(/\p{Decimal_Number}/gu)?.length ?? 0);
+    headline.replaceChildren(...Array.from(text, character => {
+      if (!/\p{Decimal_Number}/u.test(character) || previousDigits[position++] === character) return character;
+      const slot = element("span", "viz-headline-digit");
+      const digit = element("span");
+      digit.textContent = character;
+      slot.append(digit);
+      return slot;
+    }));
   }
 
-  function display(index: number) {
+  function display(index: number, settleHeadline = false) {
     active = index;
     const mark = layout?.marks[index];
-    displayHeadline(index, mark);
+    displayHeadline(index, mark, settleHeadline);
     const points = pinned && "series" in config && config.marker !== false ? mark?.points ?? [] : [];
     lineMarkers.replaceChildren(...points.map(point => svgElement("circle", {
       cx: mark.x, cy: point.y, r: 5, fill: point.color, stroke: "var(--viz-surface)", "stroke-width": 1,
@@ -460,7 +472,8 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
 
   function draw() {
     const nextWidth = Math.floor(scroller.clientWidth);
-    if (nextWidth < 96 || width === nextWidth) return;
+    const minimumWidth = config.type === "strip" ? 1 : 96;
+    if (nextWidth < minimumWidth || width === nextWidth) return;
     width = nextWidth;
     const keepLineSelection = pinned && isLine();
     pinned = keepLineSelection;
@@ -488,7 +501,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
         const { path, color, top, bottom } = layout.lineFill;
         const gradient = svgElement("linearGradient", { id: gradientId, gradientUnits: "userSpaceOnUse", x1: 0, x2: 0, y1: top, y2: bottom });
         gradient.append(
-          svgElement("stop", { offset: 0, "stop-color": color, "stop-opacity": 0.4 }),
+          svgElement("stop", { offset: 0, "stop-color": color, "stop-opacity": "var(--viz-page-gradient-opacity, 0.4)" }),
           svgElement("stop", { offset: 1, "stop-color": color, "stop-opacity": 0 }),
         );
         defs.append(gradient);
@@ -554,9 +567,8 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const title = element("h2");
     title.textContent = config.title;
     headingCopy.append(title);
-    headlineMotion?.cancel();
-    headlineMotion = undefined;
     headline = undefined;
+    previousHeadline = config.headline ?? "";
     if (config.headline) {
       headline = element("p", "viz-headline");
       headline.textContent = config.headline;
@@ -601,7 +613,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const legend = element("div", "viz-series");
       config.series.forEach((series, i) => {
         const item = element("span");
-        item.style.setProperty("--series-color", series.color ?? (i ? tint(50) : color));
+        item.style.setProperty("--series-color", series.color ?? (i ? secondaryColor : color));
         item.textContent = series.name;
         legend.append(item);
       });
@@ -649,12 +661,12 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     if (config.type === "strip") selectStrip(index);
     else if (index >= 0) {
       pinned = true;
-      display(index);
+      display(index, true);
     }
   });
   svg.addEventListener("lostpointercapture", () => { linePointer = null; });
   svg.addEventListener("pointerleave", () => {
-    if (!pinned) display(-1);
+    if (!pinned) display(-1, true);
   });
   scroller.addEventListener("blur", () => {
     if (pinned && isLine()) return;
@@ -664,7 +676,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   scroller.addEventListener("keydown", event => {
     if (event.key === "Escape") {
       pinned = false;
-      display(-1);
+      display(-1, true);
       return;
     }
     if (!layout?.marks.length) return;
@@ -713,6 +725,6 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const data = layout ?? chartLayout(config, 320, options);
       return data.marks.flatMap(mark => mark.values.map(([series, value]) => ({ label: mark.label, series, value })));
     },
-    destroy() { headlineMotion?.cancel(); observer.disconnect(); card.remove(); },
+    destroy() { observer.disconnect(); card.remove(); },
   };
 }

@@ -45,16 +45,22 @@
 }
 .chart-theme[data-chart-theme="dark"] {
   color-scheme: dark;
-  --viz-page-surface: #222128;
+  --viz-page-surface: #1c1d24;
   --viz-page-ink: #eeedf2;
-  --viz-page-muted: #b8b5c2;
-  --viz-page-grid: #393740;
-  --viz-page-accent: var(--chart-accent-dark, #dedede);
+  --viz-page-muted: #c4c3cf;
+  --viz-page-grid: #343640;
+  --viz-page-accent: var(--chart-accent-dark, #f1eff8);
+  --viz-page-secondary-strength: 66%;
+  --viz-page-cap-opacity: 0.32;
+  --viz-page-gradient-opacity: 0.54;
+  --viz-page-heatmap-lift: 0.16;
+  --viz-page-strip-strength: 48%;
 }
-.chart-theme[data-chart-palette="blue"] { --chart-accent-light: #4977e1; --chart-accent-dark: #4977e1; }
-.chart-theme[data-chart-palette="orange"] { --chart-accent-light: #e95f1c; --chart-accent-dark: #ff8a43; }
-.chart-theme[data-chart-palette="green"] { --chart-accent-light: #009b68; --chart-accent-dark: #39e3a0; }
+.chart-theme[data-chart-palette="blue"] { --chart-accent-light: #4977e1; --chart-accent-dark: #78a5ff; }
+.chart-theme[data-chart-palette="orange"] { --chart-accent-light: #e95f1c; --chart-accent-dark: #ff9b57; }
+.chart-theme[data-chart-palette="green"] { --chart-accent-light: #009b68; --chart-accent-dark: #39e8a3; }
 .chart-theme > .viz-card { border-radius: 20px; }
+.chart-theme[data-chart-theme="dark"] > .viz-card { --viz-volume: color-mix(in srgb, var(--viz-accent) 48%, var(--viz-surface)); }
 body { margin: 0; background: var(--gallery-background); color: var(--ink); font: var(--viz-type-regular) var(--viz-type-body-size)/var(--viz-type-body-line) var(--viz-type-family); font-optical-sizing: auto; }
 body:has(:is(.preview-dialog, #site-settings, #editor)[open]) { overflow: hidden; }
 button, input, select, textarea { font: inherit; }
@@ -212,7 +218,7 @@ dialog::backdrop { background: #0009; }
 .preview-stage, .preview-options { border-radius: 28px; background: var(--gallery-tile); }
 .preview-stage { position: relative; display: grid; place-items: center; min-block-size: 424px; padding-block: 16px; }
 .preview-chart { position: relative; z-index: 0; inline-size: min(calc(100% - 32px), var(--preview-chart-width, 100%)); }
-.preview-stage .preview-close { position: absolute; inset-block-start: 10px; inset-inline-end: 12px; z-index: 3; width: 36px; height: 36px; }
+.preview-stage .preview-close { position: absolute; inset-block-end: 10px; inset-inline-end: 12px; z-index: 3; width: 36px; height: 36px; }
 .preview-stage .preview-close svg { width: 16px; height: 16px; }
 .preview-options {
   --button: #d9d9d9;
@@ -277,11 +283,11 @@ dialog::backdrop { background: #0009; }
   white-space: nowrap;
 }
 .dropdown-trigger span { overflow: hidden; text-overflow: ellipsis; }
-.segmented { position: relative; display: flex; block-size: var(--pill-size); gap: 2px; padding: 3px; }
+.segmented { --segment-inset: 3px; position: relative; display: flex; block-size: var(--pill-size); gap: 2px; padding: var(--segment-inset); }
 .segmented[data-indicator]::before {
   content: "";
   position: absolute;
-  inset-block: 3px;
+  inset-block: var(--segment-inset);
   left: 0;
   width: var(--indicator-width);
   transform: translateX(var(--indicator-x));
