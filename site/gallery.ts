@@ -26,13 +26,14 @@ const gradientFill = byId<HTMLInputElement>("gradient-fill");
 const legendPosition = byId<HTMLSelectElement>("legend-position");
 const showVolume = byId<HTMLInputElement>("show-volume");
 const showTracks = byId<HTMLInputElement>("show-tracks");
+const performance = byId<HTMLInputElement>("performance");
 const source = byId<HTMLTextAreaElement>("config");
 const status = byId("status");
 const familyLabels = {
   column: "Column",
   stacked: "Stacked column",
   line: "Line",
-  heatmap: "Calendar heatmap",
+  heatmap: "Heatmap",
   strip: "Proportional strip",
 };
 function chartFamily(config: ChartConfig) {
@@ -84,10 +85,16 @@ function isDark(theme: Appearance["theme"]) {
   return theme === "dark" || (theme === "system" && themeQuery.matches);
 }
 
+const colorChoices: Record<string, [string, string]> = {
+  orange: ["#e95f1c", "#ff9b57"], blue: ["#4977e1", "#78a5ff"],
+  purple: ["#8052ca", "#c2a0ff"], green: ["#009b68", "#39e8a3"], monochrome: ["#343434", "#f1eff8"],
+};
 function styleChartAppearance(host: HTMLElement, index: number) {
   const { theme, palette } = appearances[index];
   host.dataset.chartTheme = isDark(theme ?? siteAppearance.theme) ? "dark" : "light";
   host.dataset.chartPalette = palette ?? siteAppearance.palette;
+  const dark = isDark(theme ?? siteAppearance.theme);
+  for (const [name, values] of Object.entries(colorChoices)) host.style.setProperty(`--viz-palette-${name}`, values[dark ? 1 : 0]);
 }
 
 interface View { label: string; count?: number }
@@ -296,9 +303,27 @@ function viewsFor(index: number) {
   if (config.type === "heatmap") return calendarRanges;
   return viewsByPreset[index].length ? viewsByPreset[index] : monthlyRanges;
 }
+// Extend the demo history for comparisons without changing the displayed period.
+const priorDemoValues = presets.map(({ config }) => "series" in config
+  ? config.series[0].values.map((value, i) => value == null ? null : Math.max(0, value * (0.84 + ((i * 17) % 25) / 100))) : []);
+function demoPerformance(index: number, config: ChartConfig, view: View | undefined): number | undefined {
+  if (!config.headline || !("series" in config)) return undefined;
+  const values = config.series[0]?.values ?? [];
+  const count = Math.min(values.length, view?.count ? view.count * samplesPerDay[index] : values.length);
+  if (!count) return undefined;
+  const history = [...priorDemoValues[index], ...values];
+  const current = history.slice(-count);
+  const previous = history.slice(-2 * count, -count);
+  const sum = (items: (number | null)[]) => items.reduce<number>((total, value) => total + (value ?? 0), 0);
+  const aggregate = index === 0 || index === 2;
+  const base = aggregate ? sum(previous) : count === 1 ? previous.at(-1) : current[0];
+  const result = aggregate ? sum(current) : current.at(-1);
+  return base != null && result != null && base !== 0 ? (result - base) / Math.abs(base) * 100 : undefined;
+}
 function viewConfig(index: number): ChartConfig {
-  const config = configs[index];
+  const base = configs[index];
   const view = viewsFor(index)[selectedViews[index]];
+  const config = { ...base, performance: demoPerformance(index, base, view) };
   if (config.type === "strip" && selectedViews[index] === 1) {
     const selectedItem = config.items[config.selected ?? -1];
     const items = config.items.slice().sort((a, b) => a.label.localeCompare(b.label));
@@ -526,7 +551,33 @@ function syncPreview(index: number) {
   syncSelectDropdown(legendPosition);
   byId("show-volume-field").hidden = config.type !== "line-column";
   selectSegment(showVolume, config.type === "line-column" && config.showVolume !== false);
+  byId("performance-field").hidden = !config.headline || !("series" in config);
+  selectSegment(performance, config.showPerformance !== false);
+  renderColorControls(config);
   updatePreviewFade();
+}
+
+function renderColorControls(config: ChartConfig) {
+  const container = byId("series-colors");
+  const entries = config.type === "strip" && config.legend !== false ? config.items.map(item => ({ name: item.label, color: item.color }))
+    : "series" in config && config.type !== "line-column" && config.series.length > 1 ? config.series.map(item => ({ name: item.name, color: item.color })) : [];
+  container.hidden = !entries.length;
+  container.replaceChildren();
+  entries.forEach((entry, i) => {
+    const row = document.createElement("label"); row.className = "option-row";
+    const name = document.createElement("span"); name.textContent = `${entry.name} color`;
+    const select = document.createElement("select"); select.setAttribute("aria-label", `${entry.name} color`);
+    const choices = [["Auto", ""], ...Object.keys(colorChoices).flatMap(key => [[`${key[0].toUpperCase() + key.slice(1)} primary`, `var(--viz-palette-${key}, ${colorChoices[key][0]})`], [`${key[0].toUpperCase() + key.slice(1)} secondary`, `color-mix(in srgb, var(--viz-palette-${key}, ${colorChoices[key][0]}) var(--viz-page-secondary-strength, 50%), var(--viz-surface))`]])];
+    choices.forEach(([label, value]) => { const option = document.createElement("option"); option.textContent = label; option.value = value; select.append(option); });
+    select.value = entry.color ?? "";
+    if (select.selectedIndex < 0) { const custom = document.createElement("option"); custom.textContent = "Custom"; custom.value = entry.color!; select.append(custom); select.value = entry.color!; }
+    select.addEventListener("change", () => {
+      const current = configs[previewIndex]; const color = select.value || undefined;
+      if (current.type === "strip") update({ ...current, items: current.items.map((item, n) => n === i ? { ...item, color } : item) });
+      else if ("series" in current) update({ ...current, series: current.series.map((item, n) => n === i ? { ...item, color } : item) });
+    });
+    row.append(name, select); container.append(row);
+  });
 }
 
 function syncPreviewAppearance(index: number) {
@@ -552,12 +603,6 @@ function saveChartAppearance(index: number) {
 
 function detailConfig(index: number): ChartConfig {
   const config = previewConfig(index);
-  const plotWidth = detailPlot?.clientWidth ?? 0;
-  const original = presets[index].config;
-  if (plotWidth && config.type === "column" && config.labels.length === 1 && config.barWidth === undefined && "series" in original) {
-    const barWidth = Math.min(64, Math.max(8, Math.round(plotWidth / original.labels.length)));
-    return { ...config, barWidth };
-  }
   return config;
 }
 
@@ -846,6 +891,10 @@ onSegmentChange(showVolume, () => {
 onSegmentChange(showTracks, () => {
   const config = configs[previewIndex];
   if (config?.type === "range-column") update({ ...config, showTracks: showTracks.checked });
+});
+onSegmentChange(performance, () => {
+  const config = configs[previewIndex];
+  if (config) update({ ...config, showPerformance: performance.checked });
 });
 
 function isRecord(value: unknown): value is Record<string, unknown> {

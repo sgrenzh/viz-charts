@@ -16,6 +16,8 @@ interface BaseConfig {
   title: string;
   headline?: string;
   period?: string;
+  performance?: number;
+  showPerformance?: boolean;
   height?: number;
   theme?: ChartTheme;
 }
@@ -241,7 +243,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
     const start = indexes.map(() => ({ pos: 0, neg: 0 }));
     main.forEach((series, s) => {
       const groups = stack ? 1 : main.length;
-      const w = Math.min(config.barWidth ?? Infinity, band.bandwidth() / groups);
+      const w = Math.min(config.barWidth ?? (indexes.length === 1 ? Math.min(64, width / 7) : Infinity), band.bandwidth() / groups);
       series.values.slice(0, indexes.length).forEach((v, i) => {
         if (v == null) return;
         const side = v >= 0 ? "pos" : "neg";
@@ -328,7 +330,7 @@ function heatmap(config: HeatmapConfig, available: number, formatValue: typeof f
     const value = data.get(date.getTime());
     const level = value === undefined ? -1 : thresholds.filter(t => value >= t).length;
     const fill = level < 0 ? rules : palette[Math.min(level, palette.length - 1)] ?? color;
-    shapes.push(shape("rect", { x, y, width: size, height: size, rx: config.radius ?? 4, fill }));
+    shapes.push(shape("rect", { x, y, width: size, height: size, rx: config.radius ?? 4, fill, ...(value !== undefined ? { "data-heat-index": marks.length } : {}) }));
     const current = date.toLocaleDateString("en", { month: "short", timeZone: "UTC" });
     if (current !== month && (i % 7 === 0 || i === 0)) {
       shapes.push(label(x, stride * 7 + 24, current));
@@ -507,11 +509,14 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
           : "";
       });
     }
+    if (config.type === "heatmap") svg.querySelectorAll<SVGElement>("[data-heat-index]").forEach(cell => {
+      cell.style.opacity = mark && Number(cell.getAttribute("data-heat-index")) !== index ? "0.3" : "";
+    });
     displayHeadline(index, mark, settleHeadline);
     const points = pinned && "series" in config && config.marker !== false ? mark?.points ?? [] : [];
     const guide = (config.type === "line" || config.type === "line-column") && config.xAxis?.show !== false && points.length && mark
       ? [svgElement("line", { x1: mark.x, x2: mark.x, y1: 12, y2: layout.height - 32,
-        stroke: "var(--viz-grid)", "stroke-width": 1, "stroke-dasharray": "4 4" })]
+        stroke: "var(--viz-muted)", "stroke-width": 1, "stroke-dasharray": "4 4" })]
       : [];
     lineMarkers.replaceChildren(...guide, ...points.map(point => svgElement("circle", {
       cx: mark.x, cy: point.y, r: 5, fill: point.color, stroke: "var(--viz-surface)", "stroke-width": 1,
@@ -635,6 +640,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const fill = stripFill(item, i, index);
       layout.marks[i].colors = [fill, fill];
       stripRows[i]?.setAttribute("aria-pressed", String(i === index));
+      stripRows[i]?.style.setProperty("--strip-dot", fill);
     });
     display(index);
   }
@@ -657,6 +663,13 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       headline = element("p", "viz-headline");
       headline.textContent = config.headline;
       headingCopy.append(headline);
+      if (config.showPerformance !== false && config.performance !== undefined && Number.isFinite(config.performance)) {
+        const pill = element("span", "viz-performance");
+        pill.dataset.direction = config.performance < 0 ? "negative" : "positive";
+        pill.textContent = `${config.performance > 0 ? "+" : ""}${config.performance.toFixed(1)}%`;
+        pill.setAttribute("aria-label", `Change: ${pill.textContent}`);
+        headingCopy.append(pill);
+      }
     }
     header.replaceChildren(headingCopy);
     if (options.controls) {
@@ -682,6 +695,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
         button.type = "button";
         button.setAttribute("aria-pressed", String(i === stripSelection));
         button.style.setProperty("--strip-color", item.color ?? color);
+        button.style.setProperty("--strip-dot", stripFill(item, i, stripSelection));
         name.textContent = item.label;
         value.textContent = formatValue(item.value);
         share.textContent = formatValue(stripShare(item.value, total), shareFormat);
