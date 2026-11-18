@@ -252,14 +252,14 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
         const barHeight = Math.abs(y(base) - endY);
         const x = center(i) - w * groups / 2 + (stack ? 0 : s * w);
         const fill = getColor(series, s);
-        shapes.push(shape("rect", { x, y: barY, width: w, height: barHeight, rx: config.barRadius ?? 0, fill, "data-bar-index": i, opacity: config.barStyle === "cap" ? "var(--viz-page-cap-opacity, 0.12)" : 1 }));
+        shapes.push(shape("rect", { x, y: barY, width: w, height: barHeight, rx: stack ? 0 : config.barRadius ?? 0, fill, "data-bar-index": i, ...(stack ? { "data-stack-index": i } : {}), opacity: config.barStyle === "cap" ? "var(--viz-page-cap-opacity, 0.12)" : 1 }));
         if (config.barStyle === "cap" && barHeight) {
           const cap = Math.min(2, barHeight);
           const r = Math.min(cap, w / 2);
           const edge = v >= 0 ? barY : barY + barHeight;
           const inside = edge + (v >= 0 ? cap : -cap);
           const d = `M${x},${inside} Q${x},${edge} ${x + r},${edge} H${x + w - r} Q${x + w},${edge} ${x + w},${inside} Z`;
-          shapes.push(shape("path", { d, fill, "data-bar-index": i, "data-bar-cap": "" }));
+          shapes.push(shape("path", { d, fill, "data-bar-index": i, "data-bar-cap": "", ...(stack ? { "data-stack-index": i } : {}) }));
         }
       });
     });
@@ -567,6 +567,20 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     } else {
       svg.replaceChildren(...marks);
       const defs = svgElement("defs", {});
+      if (config.type === "column" && config.stacked && (config.barRadius ?? 0) > 0) {
+        for (let i = 0; i < config.labels.length; i++) {
+          const segments = marks.filter(node => node.getAttribute("data-stack-index") === String(i));
+          const bars = segments.filter(node => node.localName === "rect" && Number(node.getAttribute("height")) > 0);
+          if (!bars.length) continue;
+          const top = Math.min(...bars.map(bar => Number(bar.getAttribute("y"))));
+          const bottom = Math.max(...bars.map(bar => Number(bar.getAttribute("y")) + Number(bar.getAttribute("height"))));
+          const id = `viz-stack-clip-${chartId}-${i}`;
+          const clip = svgElement("clipPath", { id, clipPathUnits: "userSpaceOnUse" });
+          clip.append(svgElement("rect", { x: bars[0].getAttribute("x")!, y: top, width: bars[0].getAttribute("width")!, height: bottom - top, rx: config.barRadius ?? 0 }));
+          defs.append(clip);
+          segments.forEach(segment => segment.setAttribute("clip-path", `url(#${id})`));
+        }
+      }
       if (layout.lineFill) {
         const { path, color, top, bottom } = layout.lineFill;
         const gradient = svgElement("linearGradient", { id: gradientId, gradientUnits: "userSpaceOnUse", x1: 0, x2: 0, y1: top, y2: bottom });

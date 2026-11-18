@@ -438,7 +438,7 @@ dialog::backdrop { background: #0009; }
 .chart-toolbar .dropdown-trigger svg { color: var(--viz-muted); }
 .chart-toolbar .dropdown-menu { box-shadow: 0 2px 8px #0001; }
 .chart-toolbar .dropdown-menu button { height: var(--chart-menu-row-height, 40px); min-height: 0; }
-#preview-chart .chart-toolbar .dropdown-menu button { font-size: var(--chart-menu-font-size, var(--viz-type-label-size)); line-height: var(--chart-menu-line-height, var(--viz-type-label-line)); }
+.chart-toolbar .dropdown-menu button { font-size: var(--chart-menu-font-size, var(--viz-type-label-size)); line-height: var(--chart-menu-line-height, var(--viz-type-label-line)); }
 .chart-theme .dropdown-trigger:focus-visible { outline-color: var(--viz-page-ink); }
 .preview-actions .icon-button svg { stroke-width: 1.5; }
 
