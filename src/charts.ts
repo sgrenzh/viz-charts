@@ -56,6 +56,7 @@ export interface RangeColumnConfig extends BaseConfig {
   yAxis?: AxisConfig;
   grid?: boolean;
   showTracks?: boolean;
+  plotWidthFactor?: number;
 }
 interface HeatmapConfig extends BaseConfig {
   type: "heatmap";
@@ -384,6 +385,7 @@ function strip(config: StripConfig, width: number, formatValue: typeof format): 
 }
 
 function rangeColumn(config: RangeColumnConfig, width: number, formatValue: typeof format): Layout {
+  width = Math.ceil(width * Math.max(1, config.plotWidthFactor ?? 1));
   const height = config.height ?? 272;
   const showX = config.xAxis?.show !== false;
   const showY = config.yAxis?.show !== false;
@@ -499,14 +501,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       svg.querySelectorAll<SVGElement>("[data-bar-index]").forEach(bar => {
         if (bar.closest("defs")) return;
         const selected = Number(bar.getAttribute("data-bar-index")) === index;
-        const base = bar.getAttribute("data-bar-fill") ?? bar.getAttribute("fill") ?? color;
-        if (!bar.hasAttribute("data-bar-fill")) bar.setAttribute("data-bar-fill", base);
-        const fill = barConfig.type === "line-column" ? (mark && selected ? color : base)
-          : mark && !selected && (barConfig.type === "range-column" || barConfig.barStyle !== "cap") ? tint("50%", base) : base;
-        bar.setAttribute("fill", fill);
-        if (barConfig.type === "column" && barConfig.barStyle === "cap" && !bar.hasAttribute("data-bar-cap")) {
-          bar.setAttribute("opacity", mark && selected ? "1" : "var(--viz-page-cap-opacity, 0.12)");
-        }
+        const cappedBody = barConfig.type === "column" && barConfig.barStyle === "cap" && !bar.hasAttribute("data-bar-cap");
+        bar.style.opacity = mark && !selected
+          ? cappedBody ? "calc(var(--viz-page-cap-opacity, 0.12) * 0.22)" : "0.22"
+          : "";
       });
     }
     displayHeadline(index, mark, settleHeadline);
@@ -525,7 +523,11 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const rows = mark.values.map(([name, value], i) => {
       const row = element("div", "viz-tooltip-row");
       row.style.setProperty("--series-color", mark.colors[i]);
-      row.textContent = name + "  " + value;
+      const label = element("span", "viz-tooltip-label");
+      const amount = element("span", "viz-tooltip-value");
+      label.textContent = name;
+      amount.textContent = value;
+      row.append(label, amount);
       return row;
     });
     tooltip.replaceChildren(title, ...rows);

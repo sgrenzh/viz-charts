@@ -26,15 +26,15 @@
   color-scheme: dark;
   --page: #0d0d0d;
   --gallery-background: var(--page);
-  --gallery-tile: #141414;
-  --tile-action-fill: #2c2c2c;
+  --gallery-tile: #1d1d1d;
+  --tile-action-fill: #282828;
   --tile-action-hover: #383838;
-  --panel: #181818;
-  --dropdown-surface: #181818;
-  --dropdown-selection: #303030;
+  --panel: #222222;
+  --dropdown-surface: #222222;
+  --dropdown-selection: #2e2e2e;
   --ink: #f5f5f5;
-  --muted: #aaa;
-  --button: #252525;
+  --muted: #999;
+  --button: #2e2e2e;
   --button-hover: #303030;
   --button-selected: #414141;
   --border: #3b3b3b;
@@ -49,10 +49,11 @@
 }
 .chart-theme[data-chart-theme="dark"] {
   color-scheme: dark;
-  --viz-page-surface: #1c1d24;
+  --viz-page-surface: #26272e;
   --viz-page-ink: #eeedf2;
-  --viz-page-muted: #c4c3cf;
-  --viz-page-grid: #343640;
+  --viz-page-muted: #a3a2ad;
+  --viz-page-grid: #313239;
+  --viz-page-tooltip-background: #41424b;
   --viz-page-accent: var(--chart-accent-dark, #f1eff8);
   --viz-page-secondary-strength: 66%;
   --viz-page-cap-opacity: 0.32;
@@ -63,6 +64,7 @@
 .chart-theme[data-chart-palette="blue"] { --chart-accent-light: #4977e1; --chart-accent-dark: #78a5ff; }
 .chart-theme[data-chart-palette="orange"] { --chart-accent-light: #e95f1c; --chart-accent-dark: #ff9b57; }
 .chart-theme[data-chart-palette="green"] { --chart-accent-light: #009b68; --chart-accent-dark: #39e8a3; }
+.chart-theme[data-chart-palette="purple"] { --chart-accent-light: #8052ca; --chart-accent-dark: #c2a0ff; }
 .chart-theme > .viz-card { border-radius: 20px; }
 .chart-theme[data-chart-theme="dark"] > .viz-card { --viz-volume: color-mix(in srgb, var(--viz-accent) 48%, var(--viz-surface)); }
 body { margin: 0; background: var(--gallery-background); color: var(--ink); font: var(--viz-type-regular) var(--viz-type-body-size)/var(--viz-type-body-line) var(--viz-type-family); font-optical-sizing: auto; }
@@ -124,6 +126,7 @@ button { transition: background-color 160ms ease, color 160ms ease, transform 18
   color: var(--ink);
   white-space: nowrap;
 }
+:where(:root[data-theme="dark"]) .chart-nav button { background: #1e1e1e; }
 .chart-types button {
   --pill-label-letter-spacing: 0.2px;
   padding-inline: 16px;
@@ -218,6 +221,7 @@ dialog::backdrop { background: #0009; }
 }
 .preview-dialog[open] { display: flex; flex-direction: column; }
 .preview-dialog::backdrop { background: rgb(255 255 255 / 80%); backdrop-filter: blur(16px); transition: opacity 400ms ease; }
+:root[data-theme="dark"] .preview-dialog::backdrop { background: rgb(0 0 0 / 80%); }
 .preview-dialog[data-closing]::backdrop { opacity: 0; }
 .preview-content { display: grid; flex: none; gap: var(--preview-spacing); width: 100%; margin: auto; }
 .preview-stage, .preview-options { border-radius: 28px; background: var(--gallery-tile); }
@@ -236,7 +240,7 @@ dialog::backdrop { background: #0009; }
   max-block-size: calc(100dvh - 2 * var(--preview-spacing));
   overflow: hidden;
 }
-:root[data-theme="dark"] .preview-options { --button: #2a2a2a; --button-hover: #363636; }
+:root[data-theme="dark"] .preview-options { --button: #2b2b2b; --button-hover: #363636; }
 #site-settings { max-width: 420px; }
 .site-settings-options { padding: 16px 20px 20px; }
 .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -349,7 +353,7 @@ dialog::backdrop { background: #0009; }
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--dropdown-surface);
-  box-shadow: 0 6px 24px #0003;
+  box-shadow: 0 3px 12px #0002;
 }
 .dropdown-menu button {
   display: flex;
@@ -432,8 +436,9 @@ dialog::backdrop { background: #0009; }
 }
 .chart-toolbar .dropdown-trigger:hover { background: var(--viz-surface); }
 .chart-toolbar .dropdown-trigger svg { color: var(--viz-muted); }
-.chart-toolbar .dropdown-menu { box-shadow: 0 3px 12px #0002; }
+.chart-toolbar .dropdown-menu { box-shadow: 0 2px 8px #0001; }
 .chart-toolbar .dropdown-menu button { height: var(--chart-menu-row-height, 40px); min-height: 0; }
+#preview-chart .chart-toolbar .dropdown-menu button { font-size: var(--chart-menu-font-size, var(--viz-type-label-size)); line-height: var(--chart-menu-line-height, var(--viz-type-label-line)); }
 .chart-theme .dropdown-trigger:focus-visible { outline-color: var(--viz-page-ink); }
 .preview-actions .icon-button svg { stroke-width: 1.5; }
 

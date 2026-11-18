@@ -46,7 +46,7 @@ Range column charts display a low-to-high interval for each label. They can use 
 const config = {
   version: 1,
   type: "range-column",
-  title: "Hourly temperature range",
+  title: "Temperature range",
   labels: ["09:00", "10:00", "11:00"],
   ranges: [{ low: 12, high: 15 }, { low: 13, high: 17 }, { low: 14, high: 18 }],
   showTracks: true,

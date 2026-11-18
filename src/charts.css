@@ -71,7 +71,7 @@
   pointer-events: none;
   padding: 8px 12px;
   border-radius: 8px;
-  background: #1a1523;
+  background: var(--viz-page-tooltip-background, #1a1523);
   color: #fdfcfd;
   box-shadow: 0 4px 12px #1a152328;
   font-variant-numeric: tabular-nums;
@@ -79,6 +79,8 @@
 .viz-tooltip strong { display: block; margin-bottom: 4px; font-weight: var(--viz-type-semibold); }
 .viz-tooltip-row { display: flex; align-items: center; gap: 4px; }
 .viz-tooltip-row::before { content: ""; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--series-color); }
+.viz-tooltip-label { min-width: 0; overflow-wrap: anywhere; }
+.viz-tooltip-value { margin-inline-start: auto; padding-inline-start: 2px; white-space: nowrap; }
 .viz-series { display: flex; flex-wrap: wrap; gap: 12px; grid-column: 1 / -1; }
 .viz-series span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 4px; border-radius: 50%; background: var(--series-color); }
 .viz-legend { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-content: start; column-gap: 8px; }

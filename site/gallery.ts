@@ -48,7 +48,7 @@ const chartTypeLabels: Record<ReturnType<typeof chartFamily>, string> = {
   strip: familyLabels.strip,
 };
 const chartThemes = ["system", "light", "dark"] as const;
-const chartPalettes = ["monochrome", "blue", "orange", "green"] as const;
+const chartPalettes = ["orange", "blue", "purple", "green", "monochrome"] as const;
 interface Appearance {
   theme: typeof chartThemes[number];
   palette: typeof chartPalettes[number];
@@ -72,7 +72,7 @@ function readAppearance(value: unknown): Partial<Appearance> {
 const savedSite = readAppearance(readStored(siteAppearanceKey) ?? readStored("viz-gallery-appearance"));
 const siteAppearance: Appearance = {
   theme: savedSite.theme ?? "system",
-  palette: savedSite.palette ?? "monochrome",
+  palette: savedSite.palette ?? "orange",
 };
 const storedCharts = readStored(chartAppearanceKey);
 const appearances = presets.map(({ config, previousTitle }): Partial<Appearance> => {
@@ -169,6 +169,12 @@ function createDropdown(id: string, onSelect: (index: number) => void) {
     const bounds = trigger.getBoundingClientRect();
     if (root.classList.contains("chart-toolbar")) {
       menu.style.setProperty("--chart-menu-row-height", `${bounds.height}px`);
+      if (root.closest("#preview-chart")) {
+        const scale = bounds.height / (trigger.offsetHeight || bounds.height);
+        const style = getComputedStyle(trigger);
+        menu.style.setProperty("--chart-menu-font-size", `${parseFloat(style.fontSize) * scale}px`);
+        menu.style.setProperty("--chart-menu-line-height", `${parseFloat(style.lineHeight) * scale}px`);
+      }
     }
     menu.style.minWidth = `${Math.min(bounds.width, window.innerWidth - 16)}px`;
     const active = menu.children[selected] as HTMLElement | undefined;
@@ -300,6 +306,16 @@ function viewConfig(index: number): ChartConfig {
     return { ...config, items, selected: selectedItem ? items.indexOf(selectedItem) : undefined };
   }
   if (!view?.count) {
+    if (presets[index].previousTitle === "Hourly temperature range" && config.type === "range-column") {
+      const labels: string[] = [];
+      const ranges: ({ low: number; high: number } | null)[] = [];
+      for (let i = 0; i < config.labels.length; i += 6) {
+        const group = config.ranges.slice(i, i + 6).filter((range): range is { low: number; high: number } => range !== null);
+        labels.push(config.labels[i]);
+        ranges.push(group.length ? { low: Math.min(...group.map(range => range.low)), high: Math.max(...group.map(range => range.high)) } : null);
+      }
+      return { ...config, labels, ranges, plotWidthFactor: 1.2 };
+    }
     if (index === transitPresetIndex && config.type === "column" && config.stacked && config.labels.length > 24) {
       // Combine hourly observations into 90-minute totals for a less crowded week.
       const bins = Math.ceil(config.labels.length / 1.5);
@@ -887,7 +903,7 @@ function readConfig(text: string): ChartConfig {
     if (!Array.isArray(parsed.labels) || !parsed.labels.every(label => typeof label === "string")
       || !Array.isArray(parsed.ranges) || parsed.ranges.length !== parsed.labels.length
       || !parsed.ranges.every(range => range === null || (isRecord(range) && finite(range.low) && finite(range.high) && range.low <= range.high))
-      || !validAxis(parsed.xAxis) || !validAxis(parsed.yAxis)
+      || !validAxis(parsed.xAxis) || !validAxis(parsed.yAxis) || !within(parsed.plotWidthFactor, 1, 4)
       || (parsed.showTracks !== undefined && typeof parsed.showTracks !== "boolean")
       || (parsed.grid !== undefined && typeof parsed.grid !== "boolean")) throw new Error("Provide labels and matching ranges with a numeric low and high.");
   } else if (parsed.type === "column" || parsed.type === "line" || parsed.type === "line-column") {
