@@ -9,6 +9,7 @@ const sitePalette = byId<HTMLSelectElement>("site-palette");
 const siteThemeOptions = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="site-theme"]'));
 const preview = byId<HTMLDialogElement>("preview");
 const previewContent = byId("preview-content");
+const previewOptions = previewContent.querySelector<HTMLElement>(".preview-options")!;
 const previewStage = byId("preview-stage");
 const previewClose = byId("preview-close");
 const previewFields = byId("preview-fields");
@@ -24,6 +25,7 @@ const grid = byId<HTMLInputElement>("grid");
 const gradientFill = byId<HTMLInputElement>("gradient-fill");
 const legendPosition = byId<HTMLSelectElement>("legend-position");
 const showVolume = byId<HTMLInputElement>("show-volume");
+const showTracks = byId<HTMLInputElement>("show-tracks");
 const source = byId<HTMLTextAreaElement>("config");
 const status = byId("status");
 const familyLabels = {
@@ -38,6 +40,7 @@ function chartFamily(config: ChartConfig) {
 }
 const chartTypeLabels: Record<ReturnType<typeof chartFamily>, string> = {
   column: "Column chart",
+  "range-column": "Range column chart",
   stacked: "Stacked column chart",
   line: "Line chart",
   "line-column": "Line and column chart",
@@ -98,11 +101,13 @@ const viewsByPreset: View[][] = [
   monthlyRanges, calendarRanges, monthlyRanges, [],
   [{ label: "24 hours", count: 1 }, { label: "One week" }],
   [{ label: "24 hours", count: 1 }, { label: "One week" }],
+  [{ label: "24 hours", count: 1 }, { label: "One week" }],
 ];
-const samplesPerDay = [1, 4, 1, 3, 1, 8, 1, 24, 6];
+const samplesPerDay = [1, 4, 1, 3, 1, 8, 1, 24, 6, 24];
 const stripViews: View[] = [{ label: "By item count" }, { label: "By category" }];
 const configs = presets.map(({ config }) => structuredClone(config));
-const selectedViews = presets.map(({ config }, index) => config.type === "strip" ? 0 : viewsByPreset[index].length - 1);
+const transitPresetIndex = presets.findIndex(preset => preset.previousTitle === "Transaction count");
+const selectedViews = presets.map(({ config }, index) => config.type === "strip" || config.type === "range-column" || index === transitPresetIndex ? 0 : viewsByPreset[index].length - 1);
 let closeCurrentMenu: (() => void) | undefined;
 
 const icons = {
@@ -294,11 +299,36 @@ function viewConfig(index: number): ChartConfig {
     const items = config.items.slice().sort((a, b) => a.label.localeCompare(b.label));
     return { ...config, items, selected: selectedItem ? items.indexOf(selectedItem) : undefined };
   }
-  if (!view?.count) return config;
+  if (!view?.count) {
+    if (index === transitPresetIndex && config.type === "column" && config.stacked && config.labels.length > 24) {
+      // Combine hourly observations into 90-minute totals for a less crowded week.
+      const bins = Math.ceil(config.labels.length / 1.5);
+      const labels = Array.from({ length: bins }, (_, i) => config.labels[Math.floor(i * 1.5)]);
+      const series = config.series.map(item => ({ ...item, values: labels.map((_, i) => {
+        const start = i * 1.5;
+        const end = Math.min(start + 1.5, item.values.length);
+        let total = 0;
+        let hasValue = false;
+        for (let j = Math.floor(start); j < end; j++) {
+          const value = item.values[j];
+          if (value == null) continue;
+          total += value * (Math.min(end, j + 1) - Math.max(start, j));
+          hasValue = true;
+        }
+        return hasValue ? Math.round(total) : null;
+      }) }));
+      return { ...config, labels, series };
+    }
+    return config;
+  }
   if (config.type === "heatmap") {
     const last = config.days.reduce((latest, day) => Math.max(latest, Date.parse(day.date)), -Infinity);
     const first = last - (view.count - 1) * dayMs;
     return { ...config, days: config.days.filter(day => Date.parse(day.date) >= first) };
+  }
+  if (config.type === "range-column") {
+    const count = view.count * samplesPerDay[index];
+    return { ...config, labels: config.labels.slice(-count), ranges: config.ranges.slice(-count) };
   }
   if ("series" in config) {
     const count = view.count * samplesPerDay[index];
@@ -382,7 +412,7 @@ const charts = presets.map(({ layout, formatHeadline }, index) => {
 let activeFamily = "all";
 function matchesFilter(config: ChartConfig) {
   const family = chartFamily(config);
-  return activeFamily === "all" || (family === "line-column" ? "line" : family) === activeFamily;
+  return activeFamily === "all" || (family === "line-column" ? "line" : family === "range-column" ? "column" : family) === activeFamily;
 }
 const filters = Object.entries({ all: "All", ...familyLabels }).map(([family, label]) => {
   const pill = document.createElement("button");
@@ -466,11 +496,13 @@ function syncPreview(index: number) {
   byId("preview-heading").textContent = chartTypeLabels[chartFamily(config)];
   byId("preview-range-label").textContent = "Sort by";
   byId("preview-range").parentElement!.hidden = config.type !== "strip";
-  const hasAxes = "series" in config;
+  const hasAxes = "series" in config || config.type === "range-column";
   byId("axes").hidden = !hasAxes;
   selectSegment(xAxis, hasAxes && config.xAxis?.show !== false);
   selectSegment(yAxis, hasAxes && config.yAxis?.show !== false);
   selectSegment(grid, hasAxes && config.grid !== false);
+  byId("show-tracks-field").hidden = config.type !== "range-column";
+  selectSegment(showTracks, config.type === "range-column" && config.showTracks !== false);
   const hasLine = config.type === "line" || config.type === "line-column";
   byId("gradient-fill-field").hidden = !hasLine;
   selectSegment(gradientFill, hasLine && config.gradientFill === true);
@@ -598,6 +630,9 @@ function animatePreview(originTile: DOMRect, originChart: DOMRect, card: Element
       { transform: chartTransform, transformOrigin: "top left" },
       { transform: "none", transformOrigin: "top left" },
     ], timing),
+    previewOptions.animate([{ opacity: 0 }, { opacity: 1 }], {
+      delay: timing.duration, duration: 180, easing: "ease-out", fill: "backwards",
+    }),
     previewClose.animate([{ opacity: 0, pointerEvents: "none" }, { opacity: 1, pointerEvents: "auto" }], {
       delay: timing.duration, duration: 150, easing: "ease-out", fill: "backwards",
     }),
@@ -618,6 +653,7 @@ function closePreview() {
   const stageStart = getComputedStyle(previewStage).transform || "none";
   const chartStart = getComputedStyle(card).transform || "none";
   const closeOpacity = getComputedStyle(previewClose).opacity || "1";
+  const optionsOpacity = getComputedStyle(previewOptions).opacity || "1";
   previewAnimations.splice(0).forEach(animation => animation.cancel());
   const transforms = previewTransforms(home.card.getBoundingClientRect(), homeCard.getBoundingClientRect(), card);
   if (!transforms) {
@@ -637,6 +673,7 @@ function closePreview() {
       { transform: chartStart, transformOrigin: "top left" },
       { transform: transforms.chartTransform, transformOrigin: "top left" },
     ], timing),
+    previewOptions.animate([{ opacity: optionsOpacity }, { opacity: 0 }], { duration: 180, fill: "forwards" }),
     previewClose.animate([{ opacity: closeOpacity }, { opacity: 0 }], { duration: 150, fill: "forwards" }),
   ];
   previewAnimations = animations;
@@ -704,7 +741,7 @@ function update(config: ChartConfig) {
 
 function applyControls() {
   const config = configs[previewIndex];
-  if (config && "series" in config) {
+  if (config && ("series" in config || config.type === "range-column")) {
     update({ ...config, grid: grid.checked, xAxis: { ...config.xAxis, show: xAxis.checked }, yAxis: { ...config.yAxis, show: yAxis.checked } });
   }
 }
@@ -791,6 +828,10 @@ onSegmentChange(showVolume, () => {
   const config = configs[previewIndex];
   if (config?.type === "line-column") update({ ...config, showVolume: showVolume.checked });
 });
+onSegmentChange(showTracks, () => {
+  const config = configs[previewIndex];
+  if (config?.type === "range-column") update({ ...config, showTracks: showTracks.checked });
+});
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -842,6 +883,13 @@ function readConfig(text: string): ChartConfig {
     if (parsed.legendPosition !== undefined && parsed.legendPosition !== "below" && parsed.legendPosition !== "right" && parsed.legendPosition !== "left") {
       throw new Error("Choose below, right, or left for the list position.");
     }
+  } else if (parsed.type === "range-column") {
+    if (!Array.isArray(parsed.labels) || !parsed.labels.every(label => typeof label === "string")
+      || !Array.isArray(parsed.ranges) || parsed.ranges.length !== parsed.labels.length
+      || !parsed.ranges.every(range => range === null || (isRecord(range) && finite(range.low) && finite(range.high) && range.low <= range.high))
+      || !validAxis(parsed.xAxis) || !validAxis(parsed.yAxis)
+      || (parsed.showTracks !== undefined && typeof parsed.showTracks !== "boolean")
+      || (parsed.grid !== undefined && typeof parsed.grid !== "boolean")) throw new Error("Provide labels and matching ranges with a numeric low and high.");
   } else if (parsed.type === "column" || parsed.type === "line" || parsed.type === "line-column") {
     const labels = parsed.labels;
     if (!Array.isArray(labels) || !labels.every(x => typeof x === "string") || !Array.isArray(parsed.series)

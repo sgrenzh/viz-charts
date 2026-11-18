@@ -11,6 +11,7 @@
   --tile-action-hover: #d8d8d8;
   --panel: #fafafa;
   --dropdown-surface: #fff;
+  --dropdown-selection: #ededed;
   --ink: #171717;
   --muted: #595959;
   --button: #ededed;
@@ -30,6 +31,7 @@
   --tile-action-hover: #383838;
   --panel: #181818;
   --dropdown-surface: #181818;
+  --dropdown-selection: #303030;
   --ink: #f5f5f5;
   --muted: #aaa;
   --button: #252525;
@@ -217,7 +219,6 @@ dialog::backdrop { background: #0009; }
 .preview-dialog[open] { display: flex; flex-direction: column; }
 .preview-dialog::backdrop { background: rgb(255 255 255 / 80%); backdrop-filter: blur(16px); transition: opacity 400ms ease; }
 .preview-dialog[data-closing]::backdrop { opacity: 0; }
-.preview-dialog[data-closing] .preview-options { opacity: 0; transition: opacity 180ms ease-out; }
 .preview-content { display: grid; flex: none; gap: var(--preview-spacing); width: 100%; margin: auto; }
 .preview-stage, .preview-options { border-radius: 28px; background: var(--gallery-tile); }
 .preview-stage { position: relative; display: grid; place-items: center; min-block-size: 424px; padding-block: 16px; }
@@ -356,14 +357,14 @@ dialog::backdrop { background: #0009; }
   gap: var(--pill-icon-gap);
   width: 100%;
   min-height: 44px;
-  padding: 8px 16px;
+  padding: 8px 14px;
   border: 0;
   background: transparent;
   color: var(--ink);
   text-align: left;
 }
-.dropdown-menu button:is(:hover, :focus-visible) { background: var(--button); outline-offset: -3px; }
-.dropdown-menu button[aria-checked="true"] { background: var(--button); }
+.dropdown-menu button:is(:hover, :focus-visible) { background: var(--dropdown-selection); outline-offset: -3px; }
+.dropdown-menu button[aria-checked="true"] { background: var(--dropdown-selection); }
 .dropdown-menu svg { width: 18px; height: 18px; flex: none; }
 
 .dialog-heading { position: sticky; top: 0; z-index: 1; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--panel); }

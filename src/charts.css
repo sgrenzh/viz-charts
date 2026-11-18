@@ -27,6 +27,7 @@
 }
 .viz-heading-copy { display: grid; grid-area: 1 / 1; grid-template-columns: minmax(0, 1fr); row-gap: 8px; min-width: 0; }
 .viz-heading h2 { margin: 0; font-size: var(--viz-type-body-size); font-weight: var(--viz-type-medium); overflow-wrap: anywhere; }
+.viz-heading:has(.viz-headline) { margin-bottom: 24px; }
 .viz-heading > :is(.viz-period, .chart-toolbar) { grid-column: 2; grid-row: 1; justify-self: end; }
 .viz-period { border: 1px solid var(--viz-grid); border-radius: 8px; padding: 6px 12px; color: var(--viz-muted); }
 .viz-headline { inline-size: 100cqi; margin: 0; font-size: var(--viz-type-value-size); line-height: var(--viz-type-value-line); letter-spacing: -0.025em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }

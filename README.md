@@ -40,6 +40,26 @@ const chart = mountChart(document.getElementById("chart"), {
 
 Call `chart.update(config)` when your data or settings change and `chart.destroy()` when you remove the chart.
 
+Range column charts display a low-to-high interval for each label. They can use values from any data source; update the chart when new values arrive:
+
+```js
+const config = {
+  version: 1,
+  type: "range-column",
+  title: "Hourly temperature range",
+  labels: ["09:00", "10:00", "11:00"],
+  ranges: [{ low: 12, high: 15 }, { low: 13, high: 17 }, { low: 14, high: 18 }],
+  showTracks: true,
+  xAxis: { show: true },
+  yAxis: { show: false },
+  grid: false,
+};
+const chart = mountChart(document.getElementById("chart"), config);
+// When new data arrives: chart.update({ ...config, labels, ranges });
+```
+
+Each range must have numeric `low` and `high` values in ascending order, or be `null` for a missing observation. Source connections, polling and loading states belong to the embedding application.
+
 For a line or combined line and column chart, set `gradientFill: true` to fade the lead line’s color toward the base of the line plot. In the gallery, open the chart’s preview and set **Gradient fill** to **On**.
 
 The chart stylesheet loads [Allo](https://allo.joshpuckett.me/) by default and shares a type scale with the gallery. Set `theme.fontFamily` to use your own font on a chart. Allo ships under the [SIL Open Font License](public/licenses/allo.txt).

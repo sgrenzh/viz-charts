@@ -1,7 +1,7 @@
 import { scaleBand, scaleLinear } from "d3-scale";
 import { area, line } from "d3-shape";
 
-export type ChartConfig = CartesianConfig | HeatmapConfig | StripConfig;
+export type ChartConfig = CartesianConfig | RangeColumnConfig | HeatmapConfig | StripConfig;
 export type LegendPosition = "below" | "right" | "left";
 export interface ChartTheme {
   accent?: string;
@@ -47,6 +47,15 @@ interface CartesianConfig extends BaseConfig {
   marker?: boolean;
   gradientFill?: boolean;
   showVolume?: boolean;
+}
+export interface RangeColumnConfig extends BaseConfig {
+  type: "range-column";
+  labels: string[];
+  ranges: ({ low: number; high: number } | null)[];
+  xAxis?: AxisConfig;
+  yAxis?: AxisConfig;
+  grid?: boolean;
+  showTracks?: boolean;
 }
 interface HeatmapConfig extends BaseConfig {
   type: "heatmap";
@@ -137,7 +146,9 @@ function xAxisLabels(labels: string[], maxTicks: number, width: number, y: numbe
   const candidates = labels.flatMap((text, index) => {
     if (!text || text === labels[index - 1]) return [];
     const textWidth = Math.min(width, estimateAxisLabelWidth(text));
-    const x = center(index);
+    let last = index;
+    while (last + 1 < labels.length && labels[last + 1] === text) last++;
+    const x = (center(index) + center(last)) / 2;
     const start = Math.max(0, Math.min(width - textWidth, x - textWidth / 2));
     return [{ text, x, textWidth, start, end: start + textWidth }];
   });
@@ -240,14 +251,14 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
         const barHeight = Math.abs(y(base) - endY);
         const x = center(i) - w * groups / 2 + (stack ? 0 : s * w);
         const fill = getColor(series, s);
-        shapes.push(shape("rect", { x, y: barY, width: w, height: barHeight, rx: config.barRadius ?? 0, fill, opacity: config.barStyle === "cap" ? "var(--viz-page-cap-opacity, 0.12)" : 1 }));
+        shapes.push(shape("rect", { x, y: barY, width: w, height: barHeight, rx: config.barRadius ?? 0, fill, "data-bar-index": i, opacity: config.barStyle === "cap" ? "var(--viz-page-cap-opacity, 0.12)" : 1 }));
         if (config.barStyle === "cap" && barHeight) {
           const cap = Math.min(2, barHeight);
           const r = Math.min(cap, w / 2);
           const edge = v >= 0 ? barY : barY + barHeight;
           const inside = edge + (v >= 0 ? cap : -cap);
           const d = `M${x},${inside} Q${x},${edge} ${x + r},${edge} H${x + w - r} Q${x + w},${edge} ${x + w},${inside} Z`;
-          shapes.push(shape("path", { d, fill }));
+          shapes.push(shape("path", { d, fill, "data-bar-index": i, "data-bar-cap": "" }));
         }
       });
     });
@@ -259,7 +270,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
       volume.values.slice(0, indexes.length).forEach((v, i) => {
         if (v == null) return;
         const w = Math.max(1, band.bandwidth() * 0.7);
-        shapes.push(shape("rect", { x: center(i) - w / 2, y: volumeY(v), width: w, height: bottom - volumeY(v), fill: getColor(volume, 1) }));
+        shapes.push(shape("rect", { x: center(i) - w / 2, y: volumeY(v), width: w, height: bottom - volumeY(v), fill: getColor(volume, 1), "data-bar-index": i }));
       });
     }
     main.forEach((series, i) => {
@@ -372,10 +383,48 @@ function strip(config: StripConfig, width: number, formatValue: typeof format): 
   return { width, height, shapes, marks, clip: { x: 0, y: 0, width, height, rx: 8 } };
 }
 
+function rangeColumn(config: RangeColumnConfig, width: number, formatValue: typeof format): Layout {
+  const height = config.height ?? 272;
+  const showX = config.xAxis?.show !== false;
+  const showY = config.yAxis?.show !== false;
+  const top = 12;
+  const bottom = height - (showX ? 32 : 12);
+  const values = config.ranges.flatMap(range => range ? [range.low, range.high] : []);
+  const low = values.length ? Math.min(...values) : 0;
+  const high = values.length ? Math.max(...values) : 1;
+  const min = config.yAxis?.min ?? low;
+  const max = config.yAxis?.max ?? Math.max(high, min + Math.max(1, Math.abs(min)) * 1e-6);
+  const y = scaleLinear([min, max], [bottom, top]).clamp(true);
+  if (config.yAxis?.min === undefined && config.yAxis?.max === undefined) y.nice(config.yAxis?.ticks ?? 4);
+  const ticks = y.ticks(config.yAxis?.ticks ?? 4);
+  const labels = ticks.map(value => formatValue(value, config.yAxis));
+  const padding = showY ? Math.max(width < 420 ? 48 : 72, ...labels.map(text => estimateAxisLabelWidth(text) + 10)) : 0;
+  const right = Math.max(1, width - padding);
+  const band = scaleBand(config.labels.map((_, i) => String(i)), [0, right]);
+  const center = (i: number) => (band(String(i)) ?? 0) + band.bandwidth() / 2;
+  const shapes: Shape[] = [];
+  ticks.forEach((value, i) => {
+    if (config.grid !== false) shapes.push(shape("line", { x1: 0, y1: y(value), x2: right, y2: y(value), stroke: rules }));
+    if (showY) shapes.push(label(right + 8, y(value) + 4, labels[i]));
+  });
+  if (showX) shapes.push(...xAxisLabels(config.labels, config.xAxis?.ticks ?? 12, right, height - 12, center));
+  if (showX && config.xAxis?.label) shapes.push(label(right / 2, height - 1, config.xAxis.label, "middle"));
+  if (showY && config.yAxis?.label) shapes.push(label(right + 8, top, config.yAxis.label));
+  const marks = config.labels.map((name, i): Mark => {
+    const range = config.ranges[i];
+    const x = center(i);
+    if (config.showTracks !== false) shapes.push(shape("rect", { x: x - 1, y: top, width: 2, height: bottom - top, fill: rules }));
+    if (range) shapes.push(shape("rect", { x: x - 1.5, y: y(range.high), width: 3, height: Math.max(1, y(range.low) - y(range.high)), fill: color, "data-bar-index": i }));
+    return { label: name, x, y: range ? y(range.high) : top, values: range ? [["Low", formatValue(range.low, config.yAxis)], ["High", formatValue(range.high, config.yAxis)]] : [], colors: [color, color], points: range ? undefined : [] };
+  });
+  return { width, height, shapes, marks };
+}
+
 export function chartLayout(config: ChartConfig, width: number, options: ChartOptions = {}): Layout {
   const formatValue = options.formatValue ?? format;
   if (config.type === "heatmap") return heatmap(config, width, formatValue);
   if (config.type === "strip") return strip(config, width, formatValue);
+  if (config.type === "range-column") return rangeColumn(config, width, formatValue);
   return cartesian(config, width, formatValue);
 }
 
@@ -445,9 +494,28 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   function display(index: number, settleHeadline = false) {
     active = index;
     const mark = layout?.marks[index];
+    if (config.type === "column" || config.type === "line-column" || config.type === "range-column") {
+      const barConfig = config;
+      svg.querySelectorAll<SVGElement>("[data-bar-index]").forEach(bar => {
+        if (bar.closest("defs")) return;
+        const selected = Number(bar.getAttribute("data-bar-index")) === index;
+        const base = bar.getAttribute("data-bar-fill") ?? bar.getAttribute("fill") ?? color;
+        if (!bar.hasAttribute("data-bar-fill")) bar.setAttribute("data-bar-fill", base);
+        const fill = barConfig.type === "line-column" ? (mark && selected ? color : base)
+          : mark && !selected && (barConfig.type === "range-column" || barConfig.barStyle !== "cap") ? tint("50%", base) : base;
+        bar.setAttribute("fill", fill);
+        if (barConfig.type === "column" && barConfig.barStyle === "cap" && !bar.hasAttribute("data-bar-cap")) {
+          bar.setAttribute("opacity", mark && selected ? "1" : "var(--viz-page-cap-opacity, 0.12)");
+        }
+      });
+    }
     displayHeadline(index, mark, settleHeadline);
     const points = pinned && "series" in config && config.marker !== false ? mark?.points ?? [] : [];
-    lineMarkers.replaceChildren(...points.map(point => svgElement("circle", {
+    const guide = (config.type === "line" || config.type === "line-column") && config.xAxis?.show !== false && points.length && mark
+      ? [svgElement("line", { x1: mark.x, x2: mark.x, y1: 12, y2: layout.height - 32,
+        stroke: "var(--viz-grid)", "stroke-width": 1, "stroke-dasharray": "4 4" })]
+      : [];
+    lineMarkers.replaceChildren(...guide, ...points.map(point => svgElement("circle", {
       cx: mark.x, cy: point.y, r: 5, fill: point.color, stroke: "var(--viz-surface)", "stroke-width": 1,
     })));
     tooltip.hidden = !mark;
