@@ -116,6 +116,10 @@ const configs = presets.map(({ config }) => structuredClone(config));
 const transitPresetIndex = presets.findIndex(preset => preset.previousTitle === "Transaction count");
 const selectedViews = presets.map(({ config }, index) => config.type === "strip" || config.type === "range-column" || index === transitPresetIndex ? 0 : viewsByPreset[index].length - 1);
 let closeCurrentMenu: (() => void) | undefined;
+let currentMenuRoot: HTMLElement | undefined;
+document.addEventListener("pointerdown", event => {
+  if (currentMenuRoot && !currentMenuRoot.contains(event.target as Node)) closeCurrentMenu?.();
+});
 
 const icons = {
   chevron: '<path d="m6 9 6 6 6-6"/>',
@@ -195,7 +199,7 @@ function createDropdown(id: string, onSelect: (index: number) => void) {
     trigger.setAttribute("aria-expanded", "false");
     window.removeEventListener("resize", place);
     document.removeEventListener("scroll", place, true);
-    if (closeCurrentMenu === close) closeCurrentMenu = undefined;
+    if (closeCurrentMenu === close) { closeCurrentMenu = undefined; currentMenuRoot = undefined; }
     if (restoreFocus) trigger.focus({ preventScroll: true });
   }
   function open() {
@@ -219,6 +223,7 @@ function createDropdown(id: string, onSelect: (index: number) => void) {
     menu.showPopover?.();
     trigger.setAttribute("aria-expanded", "true");
     closeCurrentMenu = close;
+    currentMenuRoot = root;
     place();
     (menu.children[selected] as HTMLElement | undefined)?.focus();
     window.addEventListener("resize", place);
@@ -243,9 +248,6 @@ function createDropdown(id: string, onSelect: (index: number) => void) {
     const next = event.key === "Home" ? 0 : event.key === "End" ? length - 1
       : event.key === "ArrowDown" ? (index + 1) % length : event.key === "ArrowUp" ? (index - 1 + length) % length : -1;
     if (next >= 0) { event.preventDefault(); items[next].focus(); }
-  });
-  document.addEventListener("pointerdown", event => {
-    if (!menu.hidden && !root.contains(event.target as Node)) close();
   });
   return { root, refresh };
 }
@@ -497,7 +499,8 @@ const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const previewDuration = 400;
 function updatePreviewFade() {
   const remaining = previewFields.scrollHeight - previewFields.clientHeight - previewFields.scrollTop;
-  previewActions.toggleAttribute("data-more-controls", remaining > 1);
+  previewOptions.toggleAttribute("data-scroll-above", previewFields.scrollTop > 1);
+  previewOptions.toggleAttribute("data-scroll-below", remaining > 1);
 }
 
 previewFields.addEventListener("scroll", updatePreviewFade, { passive: true });
@@ -562,21 +565,22 @@ function renderColorControls(config: ChartConfig) {
   const entries = config.type === "strip" && config.legend !== false ? config.items.map(item => ({ name: item.label, color: item.color }))
     : "series" in config && config.type !== "line-column" && config.series.length > 1 ? config.series.map(item => ({ name: item.name, color: item.color })) : [];
   container.hidden = !entries.length;
+  if (currentMenuRoot && container.contains(currentMenuRoot)) closeCurrentMenu?.();
   container.replaceChildren();
   entries.forEach((entry, i) => {
-    const row = document.createElement("label"); row.className = "option-row";
+    const row = document.createElement("div"); row.className = "option-row";
     const name = document.createElement("span"); name.textContent = `${entry.name} color`;
-    const select = document.createElement("select"); select.setAttribute("aria-label", `${entry.name} color`);
     const choices = [["Auto", ""], ...Object.keys(colorChoices).flatMap(key => [[`${key[0].toUpperCase() + key.slice(1)} primary`, `var(--viz-palette-${key}, ${colorChoices[key][0]})`], [`${key[0].toUpperCase() + key.slice(1)} secondary`, `color-mix(in srgb, var(--viz-palette-${key}, ${colorChoices[key][0]}) var(--viz-page-secondary-strength, 50%), var(--viz-surface))`]])];
-    choices.forEach(([label, value]) => { const option = document.createElement("option"); option.textContent = label; option.value = value; select.append(option); });
-    select.value = entry.color ?? "";
-    if (select.selectedIndex < 0) { const custom = document.createElement("option"); custom.textContent = "Custom"; custom.value = entry.color!; select.append(custom); select.value = entry.color!; }
-    select.addEventListener("change", () => {
-      const current = configs[previewIndex]; const color = select.value || undefined;
+    let selected = choices.findIndex(([, value]) => value === (entry.color ?? ""));
+    if (selected < 0) { choices.push(["Custom", entry.color!]); selected = choices.length - 1; }
+    const dropdown = createDropdown(`series-color-${i}-menu`, choice => {
+      const current = configs[previewIndex]; const color = choices[choice][1] || undefined;
       if (current.type === "strip") update({ ...current, items: current.items.map((item, n) => n === i ? { ...item, color } : item) });
       else if ("series" in current) update({ ...current, series: current.series.map((item, n) => n === i ? { ...item, color } : item) });
+      container.querySelectorAll<HTMLButtonElement>(".dropdown-trigger")[i]?.focus({ preventScroll: true });
     });
-    row.append(name, select); container.append(row);
+    dropdown.refresh(choices.map(([label]) => label), selected, `${entry.name} color`);
+    row.append(name, dropdown.root); container.append(row);
   });
 }
 

@@ -244,7 +244,7 @@ dialog::backdrop { background: #0009; }
 #site-settings { max-width: 420px; }
 .site-settings-options { padding: 16px 20px 20px; }
 .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: none; padding: var(--preview-options-padding) var(--preview-options-padding) 12px; }
+.preview-heading { position: relative; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: none; padding: var(--preview-options-padding) var(--preview-options-padding) 12px; background: var(--gallery-tile); }
 .preview-heading h2 { margin: 0; font-size: var(--viz-type-subheading-size); font-weight: var(--viz-type-semibold); line-height: var(--viz-type-subheading-line); }
 .preview-fields {
   flex: 1 1 auto;
@@ -324,15 +324,19 @@ dialog::backdrop { background: #0009; }
   padding: 12px var(--preview-options-padding) var(--preview-options-padding);
   background: var(--gallery-tile);
 }
-.preview-actions[data-more-controls]::before {
+.preview-heading::after, .preview-actions::before {
   content: "";
   position: absolute;
   inset-inline: 0;
-  inset-block-end: 100%;
-  block-size: 18px;
+  block-size: 28px;
   pointer-events: none;
-  background: linear-gradient(transparent, color-mix(in srgb, var(--gallery-tile) 87%, #343434) 85%, var(--gallery-tile));
+  opacity: 0;
+  transition: opacity 160ms ease;
 }
+.preview-heading::after { inset-block-start: 100%; background: linear-gradient(to bottom, var(--gallery-tile), transparent); }
+.preview-actions::before { inset-block-end: 100%; background: linear-gradient(to top, var(--gallery-tile), transparent); }
+.preview-options[data-scroll-above] .preview-heading::after,
+.preview-options[data-scroll-below] .preview-actions::before { opacity: 1; }
 .preview-actions .icon-button {
   width: 100%;
   gap: 6px;
@@ -440,7 +444,7 @@ dialog::backdrop { background: #0009; }
 .chart-nav { transition: opacity 180ms ease; }
 body:has(.preview-dialog[open]) .chart-nav { opacity: 0; }
 .series-colors { display: grid; gap: 10px; }
-.series-colors select { max-width: 55%; border: 0; border-radius: 8px; padding: 7px 10px; background: var(--button); color: var(--ink); }
+.series-colors .dropdown { max-width: 60%; }
 @media (prefers-reduced-motion: reduce) { .chart-nav { transition: none; } }
 .chart-toolbar .dropdown-menu button { height: var(--chart-menu-row-height, 40px); min-height: 0; }
 .chart-toolbar .dropdown-menu button { font-size: var(--chart-menu-font-size, var(--viz-type-label-size)); line-height: var(--chart-menu-line-height, var(--viz-type-label-line)); }
