@@ -4,7 +4,8 @@ const range = (size: number, map: (i: number) => number) => Array.from({ length:
 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
 const date = (i: number) => new Date(Date.UTC(2024, 7, 19 + i));
 const labels = (size: number, resolution = 1) => Array.from({ length: size }, (_, i) =>
-  date(Math.floor(i / resolution)).toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" }));
+  date(Math.floor(i / resolution)).toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" })
+    + (resolution > 1 ? ` ${String((i % resolution) * 24 / resolution).padStart(2, "0")}:00` : ""));
 const noise = (i: number) => ((i * 37 + i * i * 11) % 101) / 100;
 const created = range(30, i => i < 6 ? [53, 58, 37, 65, 65, 25][i] : 12 + Math.round(noise(i) * 16));
 const active = range(83, i => {

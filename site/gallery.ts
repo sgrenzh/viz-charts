@@ -322,7 +322,7 @@ function demoPerformance(index: number, config: ChartConfig, view: View | undefi
   const result = aggregate ? sum(current) : current.at(-1);
   return base != null && result != null && base !== 0 ? (result - base) / Math.abs(base) * 100 : undefined;
 }
-function viewConfig(index: number): ChartConfig {
+function rawViewConfig(index: number): ChartConfig {
   const base = configs[index];
   const view = viewsFor(index)[selectedViews[index]];
   const config = { ...base, performance: demoPerformance(index, base, view) };
@@ -337,7 +337,7 @@ function viewConfig(index: number): ChartConfig {
       const ranges: ({ low: number; high: number } | null)[] = [];
       for (let i = 0; i < config.labels.length; i += 6) {
         const group = config.ranges.slice(i, i + 6).filter((range): range is { low: number; high: number } => range !== null);
-        labels.push(config.labels[i]);
+        labels.push(`${config.labels[i]} (6-hour interval)`);
         ranges.push(group.length ? { low: Math.min(...group.map(range => range.low)), high: Math.max(...group.map(range => range.high)) } : null);
       }
       return { ...config, labels, ranges, plotWidthFactor: 1.2 };
@@ -345,7 +345,11 @@ function viewConfig(index: number): ChartConfig {
     if (index === transitPresetIndex && config.type === "column" && config.stacked && config.labels.length > 24) {
       // Combine hourly observations into 90-minute totals for a less crowded week.
       const bins = Math.ceil(config.labels.length / 1.5);
-      const labels = Array.from({ length: bins }, (_, i) => config.labels[Math.floor(i * 1.5)]);
+      const formatTime = (hour: number) => {
+        const date = new Date(Date.UTC(2024, 7, 19) + hour * 3_600_000);
+        return `${date.toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" })} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
+      };
+      const labels = Array.from({ length: bins }, (_, i) => `${formatTime(i * 1.5)} – ${formatTime(Math.min((i + 1) * 1.5, config.labels.length))}`);
       const series = config.series.map(item => ({ ...item, values: labels.map((_, i) => {
         const start = i * 1.5;
         const end = Math.min(start + 1.5, item.values.length);
@@ -382,6 +386,20 @@ function viewConfig(index: number): ChartConfig {
     return { ...config, labels, series, headline };
   }
   return config;
+}
+
+// Show times in the daily view and centred day groups in longer views; retain
+// the complete observation or interval in the tooltip labels.
+function viewConfig(index: number): ChartConfig {
+  const config = rawViewConfig(index);
+  if (!("labels" in config)) return config;
+  const daily = viewsFor(index)[selectedViews[index]]?.label === "24 hours";
+  const axisLabels = config.labels.map(text => {
+    const match = /^(\w{3} \d{1,2})(?: (\d{2}:\d{2}))?/.exec(text);
+    if (!match) return text;
+    return daily && match[2] ? match[2] : match[1];
+  });
+  return { ...config, axisLabels };
 }
 
 function createChartControls(index: number) {
@@ -451,6 +469,26 @@ const charts = presets.map(({ layout, formatHeadline }, index) => {
   return { card, host, codeButton, range, homeRange, detailRange, refresh, settingsButton, ...mountChart(host, previewConfig(index), { formatHeadline, controls: homeRange }) };
 });
 
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+// Leave initially visible cards in place; reveal each other card only on its first entry.
+if ("IntersectionObserver" in window) {
+  const revealObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      revealObserver.unobserve(entry.target);
+      const card = entry.target as HTMLElement;
+      const frames = reducedMotion.matches
+        ? [{ opacity: 0.8 }, { opacity: 1 }]
+        : [{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "translateY(0)" }];
+      card.animate(frames, { duration: reducedMotion.matches ? 120 : 240, easing: "cubic-bezier(0.23, 1, 0.32, 1)" });
+    });
+  });
+  charts.forEach(({ card }) => {
+    const bounds = card.getBoundingClientRect();
+    if (bounds.top >= window.innerHeight || bounds.bottom <= 0) revealObserver.observe(card);
+  });
+}
+
 let activeFamily = "all";
 function matchesFilter(config: ChartConfig) {
   const family = chartFamily(config);
@@ -495,7 +533,6 @@ let detailWidth = 0;
 let previewAnimations: Animation[] = [];
 const detailResize = new ResizeObserver(resizeDetail);
 const mobilePreview = matchMedia("(max-width: 660px)");
-const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const previewDuration = 400;
 function updatePreviewFade() {
   const remaining = previewFields.scrollHeight - previewFields.clientHeight - previewFields.scrollTop;
@@ -694,8 +731,11 @@ function animatePreview(originTile: DOMRect, originChart: DOMRect, card: Element
       { transform: chartTransform, transformOrigin: "top left" },
       { transform: "none", transformOrigin: "top left" },
     ], timing),
-    previewOptions.animate([{ opacity: 0 }, { opacity: 1 }], {
-      delay: timing.duration, duration: 180, easing: "ease-out", fill: "backwards",
+    previewOptions.animate([
+      { opacity: 0, transform: "translateY(8px)" },
+      { opacity: 1, transform: "translateY(0)" },
+    ], {
+      delay: timing.duration, duration: 180, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "backwards",
     }),
     previewClose.animate([{ opacity: 0, pointerEvents: "none" }, { opacity: 1, pointerEvents: "auto" }], {
       delay: timing.duration, duration: 150, easing: "ease-out", fill: "backwards",
@@ -718,6 +758,7 @@ function closePreview() {
   const chartStart = getComputedStyle(card).transform || "none";
   const closeOpacity = getComputedStyle(previewClose).opacity || "1";
   const optionsOpacity = getComputedStyle(previewOptions).opacity || "1";
+  const optionsTransform = getComputedStyle(previewOptions).transform || "none";
   previewAnimations.splice(0).forEach(animation => animation.cancel());
   const transforms = previewTransforms(home.card.getBoundingClientRect(), homeCard.getBoundingClientRect(), card);
   if (!transforms) {
@@ -737,7 +778,10 @@ function closePreview() {
       { transform: chartStart, transformOrigin: "top left" },
       { transform: transforms.chartTransform, transformOrigin: "top left" },
     ], timing),
-    previewOptions.animate([{ opacity: optionsOpacity }, { opacity: 0 }], { duration: 180, fill: "forwards" }),
+    previewOptions.animate([
+      { opacity: optionsOpacity, transform: optionsTransform },
+      { opacity: 0, transform: "translateY(8px)" },
+    ], { duration: 180, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "forwards" }),
     previewClose.animate([{ opacity: closeOpacity }, { opacity: 0 }], { duration: 150, fill: "forwards" }),
   ];
   previewAnimations = animations;

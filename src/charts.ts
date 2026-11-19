@@ -38,6 +38,7 @@ export interface Series {
 interface CartesianConfig extends BaseConfig {
   type: "column" | "line" | "line-column";
   labels: string[];
+  axisLabels?: string[];
   series: Series[];
   xAxis?: AxisConfig;
   yAxis?: AxisConfig;
@@ -53,6 +54,7 @@ interface CartesianConfig extends BaseConfig {
 export interface RangeColumnConfig extends BaseConfig {
   type: "range-column";
   labels: string[];
+  axisLabels?: string[];
   ranges: ({ low: number; high: number } | null)[];
   xAxis?: AxisConfig;
   yAxis?: AxisConfig;
@@ -145,44 +147,31 @@ function estimateAxisLabelWidth(text: string) {
 }
 
 function xAxisLabels(labels: string[], maxTicks: number, width: number, y: number, center: (index: number) => number) {
-  // Repeated labels can represent sub-day samples. Count each run once for axis spacing.
+  // Consecutive identical labels describe a group; anchor its label at the group's centre.
   const candidates = labels.flatMap((text, index) => {
     if (!text || text === labels[index - 1]) return [];
-    const textWidth = Math.min(width, estimateAxisLabelWidth(text));
     let last = index;
     while (last + 1 < labels.length && labels[last + 1] === text) last++;
     const x = (center(index) + center(last)) / 2;
-    const start = Math.max(0, Math.min(width - textWidth, x - textWidth / 2));
-    return [{ text, x, textWidth, start, end: start + textWidth }];
+    const textWidth = estimateAxisLabelWidth(text);
+    const anchor = x - textWidth / 2 < 0 ? "start" : x + textWidth / 2 > width ? "end" : "middle";
+    const start = anchor === "start" ? x : anchor === "end" ? x - textWidth : x - textWidth / 2;
+    return [{ text, x, anchor, start, end: start + textWidth }];
   });
-
-  // Give short category lists one label per category, even when the plot is narrow.
-  if (labels.length <= 6 && candidates.length <= maxTicks) {
-    return candidates.map(({ text, x, textWidth }, i) => {
-      const previous = i ? (candidates[i - 1].x + x) / 2 : 0;
-      const next = i < candidates.length - 1 ? (x + candidates[i + 1].x) / 2 : width;
-      const available = Math.max(1, next - previous - 4);
-      const length = Math.min(available, textWidth);
-      const tick = label(Math.max(previous + length / 2, Math.min(next - length / 2, x)), y, text, "middle");
-      if (available < textWidth) Object.assign(tick.attrs, { textLength: length, lengthAdjust: "spacingAndGlyphs" });
-      return tick;
-    });
-  }
-
-  const firstStep = Math.max(1, Math.ceil(candidates.length / Math.max(2, maxTicks)));
-  const gap = 8;
-  // Widen the interval for the whole axis when two labels would overlap.
+  const firstStep = Math.max(1, Math.ceil(candidates.length / Math.max(1, maxTicks)));
   for (let step = firstStep; step <= candidates.length; step++) {
     const ticks: Shape[] = [];
     let previousEnd = -Infinity;
-    let i = 0;
-    for (; i < candidates.length; i += step) {
-      const { text, start, end } = candidates[i];
-      if (start < previousEnd + gap) break;
-      ticks.push(label((start + end) / 2, y, text, "middle"));
+    let fits = true;
+    for (let i = 0; i < candidates.length; i += step) {
+      const { text, x, anchor, start, end } = candidates[i];
+      if (start < 0 || end > width || start < previousEnd + 8) { fits = false; break; }
+      const tick = label(x, y, text, anchor);
+      tick.attrs["dominant-baseline"] = "text-after-edge";
+      ticks.push(tick);
       previousEnd = end;
     }
-    if (i >= candidates.length) return ticks;
+    if (fits) return ticks;
   }
   return [];
 }
@@ -193,7 +182,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
   const showY = config.yAxis?.show !== false;
   const left = 0;
   const top = 12;
-  const bottom = height - (showX ? 32 : 12);
+  const bottom = height - (showX ? (config.xAxis?.label ? 48 : 32) : showY ? 12 : 0);
   const combo = config.type === "line-column";
   const showVolume = combo && config.showVolume !== false;
   const column = config.type === "column";
@@ -233,8 +222,8 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
     if (config.grid !== false) shapes.push(shape("line", { x1: left, y1: y(value), x2: right, y2: y(value), stroke: rules }));
     if (showY) shapes.push(label(right + labelGap, y(value) + 4, tickLabels[i]));
   });
-  if (showX) shapes.push(...xAxisLabels(config.labels, config.xAxis?.ticks ?? 12, width, height - 12, center));
-  if (showX && config.xAxis?.label) shapes.push(label((left + right) / 2, height - 1, config.xAxis.label, "middle"));
+  if (showX) shapes.push(...xAxisLabels(config.axisLabels ?? config.labels, config.xAxis?.ticks ?? 12, right, height - (config.xAxis?.label ? 16 : 0), center));
+  if (showX && config.xAxis?.label) shapes.push(shape("text", { ...label((left + right) / 2, height, config.xAxis.label, "middle").attrs, "dominant-baseline": "text-after-edge" }, config.xAxis.label));
   if (showY && axisTitle) shapes.push(label(right + labelGap, top, axisTitle));
 
   const getColor = (series: Series, i: number) => series.color ?? (combo && i === 1 ? "var(--viz-volume, #C8C7CB)" : i ? secondaryColor : color);
@@ -392,7 +381,7 @@ function rangeColumn(config: RangeColumnConfig, width: number, formatValue: type
   const showX = config.xAxis?.show !== false;
   const showY = config.yAxis?.show !== false;
   const top = 12;
-  const bottom = height - (showX ? 32 : 12);
+  const bottom = height - (showX ? (config.xAxis?.label ? 48 : 32) : showY ? 12 : 0);
   const values = config.ranges.flatMap(range => range ? [range.low, range.high] : []);
   const low = values.length ? Math.min(...values) : 0;
   const high = values.length ? Math.max(...values) : 1;
@@ -411,8 +400,8 @@ function rangeColumn(config: RangeColumnConfig, width: number, formatValue: type
     if (config.grid !== false) shapes.push(shape("line", { x1: 0, y1: y(value), x2: right, y2: y(value), stroke: rules }));
     if (showY) shapes.push(label(right + 8, y(value) + 4, labels[i]));
   });
-  if (showX) shapes.push(...xAxisLabels(config.labels, config.xAxis?.ticks ?? 12, right, height - 12, center));
-  if (showX && config.xAxis?.label) shapes.push(label(right / 2, height - 1, config.xAxis.label, "middle"));
+  if (showX) shapes.push(...xAxisLabels(config.axisLabels ?? config.labels, config.xAxis?.ticks ?? 12, right, height - (config.xAxis?.label ? 16 : 0), center));
+  if (showX && config.xAxis?.label) shapes.push(shape("text", { ...label(right / 2, height, config.xAxis.label, "middle").attrs, "dominant-baseline": "text-after-edge" }, config.xAxis.label));
   if (showY && config.yAxis?.label) shapes.push(label(right + 8, top, config.yAxis.label));
   const marks = config.labels.map((name, i): Mark => {
     const range = config.ranges[i];
@@ -660,16 +649,18 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     headline = undefined;
     previousHeadline = config.headline ?? "";
     if (config.headline) {
+      const metric = element("div", "viz-metric");
       headline = element("p", "viz-headline");
       headline.textContent = config.headline;
-      headingCopy.append(headline);
+      metric.append(headline);
       if (config.showPerformance !== false && config.performance !== undefined && Number.isFinite(config.performance)) {
         const pill = element("span", "viz-performance");
         pill.dataset.direction = config.performance < 0 ? "negative" : "positive";
         pill.textContent = `${config.performance > 0 ? "+" : ""}${config.performance.toFixed(1)}%`;
         pill.setAttribute("aria-label", `Change: ${pill.textContent}`);
-        headingCopy.append(pill);
+        metric.append(pill);
       }
+      headingCopy.append(metric);
     }
     header.replaceChildren(headingCopy);
     if (options.controls) {
