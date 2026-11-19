@@ -70,9 +70,9 @@ Set `segmented: true` on a strip chart to show item values against a capacity. T
 
 ```js
 mountChart(document.getElementById("chart"), {
-  version: 1, type: "strip", title: "Context usage", segmented: true,
-  capacity: 200000, height: 40, segmentCount: 80, legend: true,
-  items: [{ label: "Chat history", value: 41000 }, { label: "Documents", value: 40000 }],
+  version: 1, type: "strip", title: "Exhibition tickets reserved", segmented: true,
+  capacity: 1000, height: 40, segmentCount: 80, legend: true,
+  items: [{ label: "Adult", value: 320 }, { label: "Concession", value: 210 }],
 });
 ```
 

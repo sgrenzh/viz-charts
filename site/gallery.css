@@ -168,7 +168,9 @@ button:active { transform: scale(.97); transition-duration: 160ms, 160ms, 75ms; 
   border-radius: 28px;
   background: var(--gallery-tile);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
+.gallery-tile * { -webkit-tap-highlight-color: transparent; }
 .gallery-tile > .chart-theme { cursor: default; }
 .tile-actions {
   position: absolute;
@@ -223,6 +225,8 @@ dialog::backdrop { background: #0009; }
 .preview-dialog::backdrop { background: rgb(255 255 255 / 80%); backdrop-filter: blur(16px); transition: opacity 400ms ease; }
 :root[data-theme="dark"] .preview-dialog::backdrop { background: rgb(0 0 0 / 80%); }
 .preview-dialog[data-closing]::backdrop { opacity: 0; }
+@starting-style { .preview-dialog[open]::backdrop { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .preview-dialog::backdrop { transition: none; } }
 .preview-content { display: grid; flex: none; gap: var(--preview-spacing); width: 100%; margin: auto; }
 .preview-stage, .preview-options { border-radius: 28px; background: var(--gallery-tile); }
 .preview-stage { position: relative; display: grid; place-items: center; min-block-size: 424px; padding-block: 16px; }

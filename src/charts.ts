@@ -377,9 +377,14 @@ function strip(config: StripConfig, width: number, formatValue: typeof format): 
     const height = config.height ?? 40;
     const total = stripTotal(config.items);
     const capacity = Math.max(config.capacity ?? total, total, Number.EPSILON);
-    const count = Math.max(1, Math.min(config.segmentCount ?? 80, Math.floor(width / 3)));
-    const step = width / count;
-    const barWidth = Math.max(1, step - Math.min(2, step * 0.25));
+    const targetCount = Math.max(1, Math.min(config.segmentCount ?? 80, Math.floor(width / 3)));
+    const originalStep = width / targetCount;
+    const originalGap = Math.min(2, originalStep * 0.25);
+    const barWidth = Math.min(width, originalStep - originalGap + 4);
+    const gap = originalGap + 8;
+    const count = Math.max(1, Math.min(targetCount, Math.floor((width + gap) / (barWidth + gap))));
+    const step = barWidth + gap;
+    const offset = (width - (count * barWidth + (count - 1) * gap)) / 2;
     const selected = config.selected ?? -1;
     const boundaries: number[] = [];
     config.items.reduce((sum, item) => { boundaries.push(sum + Math.max(0, item.value)); return boundaries[boundaries.length - 1]; }, 0);
@@ -387,14 +392,14 @@ function strip(config: StripConfig, width: number, formatValue: typeof format): 
     for (let n = 0; n < count; n++) {
       const at = (n + 0.5) / count * capacity;
       const index = boundaries.findIndex(end => at < end);
-      shapes.push(shape("rect", { x: n * step, y: 0, width: barWidth, height, rx: subtleRadius(barWidth, 2),
+      shapes.push(shape("rect", { x: offset + n * step, y: 0, width: barWidth, height, rx: subtleRadius(barWidth, 2),
         fill: index < 0 ? "var(--viz-grid)" : segmentFill(config.items[index], index, selected),
         ...(index >= 0 ? { class: "viz-strip-segment", "data-strip-index": index } : {}) }));
     }
     let start = 0;
     const marks = config.items.map((item, i) => {
       const end = boundaries[i];
-      const mark = { label: item.label, x: (start + end) / 2 / capacity * width, y: height / 2,
+      const mark = { label: item.label, x: offset + barWidth / 2 + (start + end) / 2 / capacity * Math.max(0, (count - 1) * step), y: height / 2,
         values: [[item.label, formatValue(item.value)], ["Share", formatValue(stripShare(item.value, capacity), shareFormat)]] as [string, string][],
         colors: [segmentFill(item, i, selected), segmentFill(item, i, selected)] };
       start = end;
@@ -798,9 +803,19 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       stateAnnouncement.textContent = visualState === "loading" ? "Loading chart" : "Couldn’t load chart";
       card.dataset.loadingStyle = retrying ? "skeleton" : options.loadingStyle ?? "skeleton";
       const headingCopy = element("div", "viz-heading-copy");
-      const title = element("h2", visualState === "loading" ? "viz-loading-title" : undefined);
-      title.textContent = "Title";
+      const showSkeleton = visualState === "loading" && card.dataset.loadingStyle === "skeleton";
+      const title = element("h2", showSkeleton ? "viz-loading-title" : undefined);
+      title.textContent = visualState === "loading" && !showSkeleton ? "Monthly activity" : "Title";
       headingCopy.append(title);
+      card.toggleAttribute("data-retrying", retrying);
+      if (retrying) {
+        const previous = element("div", "viz-retry-heading");
+        previous.setAttribute("aria-hidden", "true");
+        const previousTitle = element("h2"); previousTitle.textContent = "Title";
+        const previousMetric = element("p", "viz-headline viz-error-metric"); previousMetric.textContent = "-";
+        previous.append(previousTitle, previousMetric);
+        headingCopy.append(previous);
+      }
       if (visualState === "error") {
         const metric = element("p", "viz-headline viz-error-metric"); metric.textContent = "-";
         headingCopy.append(metric);
@@ -809,10 +824,17 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const state = element("div", "viz-state-body");
       if (visualState === "loading") {
         state.setAttribute("aria-hidden", "true");
-        const indicator = element("div", "viz-loading-indicator");
-        const spinner = element("span", "viz-loading-spinner");
-        const label = element("span", "viz-loading-label"); label.textContent = "Loading...";
-        indicator.append(spinner, label); state.append(indicator);
+        if (retrying) {
+          state.classList.add("viz-retry-wipe");
+          const message = element("p", "viz-error-message"); message.textContent = "Couldn’t load chart";
+          const retry = element("button", "viz-button viz-button-small viz-button-error"); retry.type = "button"; retry.textContent = "Retry"; retry.disabled = true; retry.tabIndex = -1;
+          state.append(message, retry);
+        } else {
+          const indicator = element("div", "viz-loading-indicator");
+          const spinner = element("span", "viz-loading-spinner");
+          const label = element("span", "viz-loading-label"); label.textContent = "Loading...";
+          indicator.append(spinner, label); state.append(indicator);
+        }
       } else {
         const message = element("p", "viz-error-message"); message.textContent = "Couldn’t load chart";
         const retry = element("button", "viz-button viz-button-small viz-button-error"); retry.type = "button"; retry.textContent = "Retry";
@@ -820,7 +842,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
           event.stopPropagation();
           retrying = true;
           render();
-          retryTimer = window.setTimeout(() => { retrying = false; retryTimer = undefined; if (card.isConnected) render(); }, 1200);
+          retryTimer = window.setTimeout(() => { retrying = false; retryTimer = undefined; if (card.isConnected) render(); }, 2200);
         });
         state.append(message, retry);
       }
