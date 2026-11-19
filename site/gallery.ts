@@ -481,18 +481,26 @@ const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 if ("IntersectionObserver" in window) {
   const revealObserver = new IntersectionObserver(entries => {
     entries.forEach(entry => {
-      if (!entry.isIntersecting) return;
+      if (!entry.isIntersecting || entry.intersectionRatio < 0.08) return;
       revealObserver.unobserve(entry.target);
       const card = entry.target as HTMLElement;
+      card.style.opacity = "";
       const frames = reducedMotion.matches
         ? [{ opacity: 0.8 }, { opacity: 1 }]
-        : [{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "translateY(0)" }];
-      card.animate(frames, { duration: reducedMotion.matches ? 120 : 240, easing: "cubic-bezier(0.23, 1, 0.32, 1)" });
+        : [{ opacity: 0, transform: "translateY(18px)" }, { opacity: 1, transform: "translateY(0)" }];
+      card.animate(frames, { duration: reducedMotion.matches ? 120 : 340, easing: "cubic-bezier(0.23, 1, 0.32, 1)" });
     });
-  });
+  }, { threshold: 0.08 });
   charts.forEach(({ card }) => {
     const bounds = card.getBoundingClientRect();
-    if (bounds.top >= window.innerHeight || bounds.bottom <= 0) revealObserver.observe(card);
+    if (bounds.top >= window.innerHeight || bounds.bottom <= 0) {
+      card.style.opacity = reducedMotion.matches ? "0.8" : "0";
+      card.addEventListener("focusin", () => {
+        card.style.opacity = "";
+        revealObserver.unobserve(card);
+      }, { once: true });
+      revealObserver.observe(card);
+    }
   });
 }
 
@@ -600,7 +608,7 @@ function syncPreview(index: number) {
   byId("donut-gap-field").hidden = !isDonut;
   selectSegment(donutLegend, isDonut && config.legend !== false);
   selectSegment(donutCenter, isDonut && config.showCenter !== false);
-  donutWidth.value = isDonut ? (config.ringWidth ?? 0.1).toFixed(2) : "0.10";
+  donutWidth.value = isDonut ? String(config.ringWidth ?? 0.075) : "0.075";
   donutGap.value = isDonut ? String(config.gap ?? 4) : "4";
   syncSelectDropdown(donutWidth);
   syncSelectDropdown(donutGap);

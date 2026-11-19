@@ -73,7 +73,7 @@ mountChart(document.getElementById("chart"), {
   version: 1, type: "donut", title: "Visits by ticket type",
   items: [{ label: "Adult", value: 5400 }, { label: "Child", value: 1900 }],
   selected: 0, legend: true, legendPosition: "below",
-  showCenter: true, ringWidth: 0.1, gap: 4,
+  showCenter: true, ringWidth: 0.075, gap: 4,
 });
 ```
 

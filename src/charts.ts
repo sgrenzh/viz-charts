@@ -428,15 +428,15 @@ function rangeColumn(config: RangeColumnConfig, width: number, formatValue: type
   return { width, height, shapes, marks };
 }
 
-function donutColor(item: DonutConfig["items"][number], index: number) {
-  return item.color ?? (index === 0 ? color : `color-mix(in srgb, var(--viz-muted) ${Math.min(62, 18 + index * 12)}%, var(--viz-surface))`);
+function donutColor(item: DonutConfig["items"][number], index: number, lead = color) {
+  return item.color ?? (index === 0 ? lead : `color-mix(in srgb, ${lead} ${Math.max(24, 92 - index * 20)}%, var(--viz-surface))`);
 }
 
 function donut(config: DonutConfig, width: number, formatValue: typeof format): Layout {
   const height = config.height ?? 232;
-  const diameter = Math.max(0, Math.min(width, height));
+  const diameter = Math.max(0, Math.min(width, height) * 0.86);
   const outer = diameter / 2;
-  const thickness = Math.min(outer, Math.max(1, diameter * (config.ringWidth ?? 0.10)));
+  const thickness = Math.min(outer, Math.max(1, diameter * (config.ringWidth ?? 0.075)));
   const radius = outer - thickness / 2;
   const cx = width / 2, cy = height / 2;
   const total = stripTotal(config.items);
@@ -450,7 +450,7 @@ function donut(config: DonutConfig, width: number, formatValue: typeof format): 
   config.items.forEach((item, i) => {
     const share = stripShare(item.value, total);
     const next = angle + share * Math.PI * 2;
-    const fill = donutColor(item, i);
+    const fill = donutColor(item, i, config.items[0]?.color ?? color);
     const middle = (angle + next) / 2;
     if (share > 0) {
       const d = shapeArc({ innerRadius: Math.max(0, outer - thickness), outerRadius: outer, startAngle: angle, endAngle: next, padAngle: Math.min(gapAngle, (next - angle) * 0.8) });
@@ -747,8 +747,8 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
         const share = element("span");
         button.type = "button";
         button.setAttribute("aria-pressed", String(i === stripSelection));
-        button.style.setProperty("--strip-color", config.type === "donut" ? donutColor(item, i) : item.color ?? color);
-        button.style.setProperty("--strip-dot", config.type === "donut" ? donutColor(item, i) : stripFill(item, i, stripSelection));
+        button.style.setProperty("--strip-color", config.type === "donut" ? donutColor(item, i, config.items[0]?.color ?? color) : item.color ?? color);
+        button.style.setProperty("--strip-dot", config.type === "donut" ? donutColor(item, i, config.items[0]?.color ?? color) : stripFill(item, i, stripSelection));
         name.textContent = item.label;
         value.textContent = formatValue(item.value);
         share.textContent = formatValue(stripShare(item.value, total), shareFormat);
