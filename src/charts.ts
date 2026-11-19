@@ -526,18 +526,24 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     previousHeadline = settle ? text : current;
     headlineAnimation++;
     headline.setAttribute("aria-label", text);
-    if (!settle || reducedMotion?.matches || from === text) {
+    if (reducedMotion?.matches || from === text) {
       if (current !== text || headline.childElementCount) headline.textContent = text;
       return;
     }
 
     const previousDigits = from.match(/\p{Decimal_Number}/gu) ?? [];
-    let position = previousDigits.length - (text.match(/\p{Decimal_Number}/gu)?.length ?? 0);
+    const digitCount = text.match(/\p{Decimal_Number}/gu)?.length ?? 0;
+    let position = previousDigits.length - digitCount;
+    let digitIndex = 0;
     headline.replaceChildren(...Array.from(text, character => {
-      if (!/\p{Decimal_Number}/u.test(character) || previousDigits[position++] === character) return character;
+      if (!/\p{Decimal_Number}/u.test(character)) return character;
+      const order = digitIndex++;
+      if (previousDigits[position++] === character) return character;
       const slot = element("span", "viz-headline-digit");
       const digit = element("span", "viz-headline-reel");
       digit.setAttribute("aria-hidden", "true");
+      digit.style.setProperty("--reel-duration", settle ? "380ms" : "210ms");
+      digit.style.setProperty("--reel-delay", settle ? `${order * 45}ms` : "0ms");
       const old = element("span"); old.textContent = previousDigits[position - 1] ?? character;
       const next = element("span"); next.textContent = character;
       digit.append(old, next);
@@ -545,7 +551,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       return slot;
     }));
     const animation = headlineAnimation;
-    window.setTimeout(() => { if (headline && animation === headlineAnimation) headline.textContent = text; }, 320);
+    window.setTimeout(() => { if (headline && animation === headlineAnimation) headline.textContent = text; }, settle ? 400 + Math.max(0, digitCount - 1) * 45 : 230);
   }
 
   function display(index: number, settleHeadline = false) {

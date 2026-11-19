@@ -33,7 +33,7 @@
 .viz-metric { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 6px; min-width: 0; }
 .viz-headline { min-width: 0; max-width: 100%; margin: 0; font-size: var(--viz-type-value-size); line-height: var(--viz-type-value-line); letter-spacing: -0.025em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .viz-headline-digit { display: inline-block; height: 1lh; overflow: clip; vertical-align: bottom; }
-.viz-headline-reel { display: block; animation: viz-headline-settle 300ms cubic-bezier(.16,.8,.24,1) both; }
+.viz-headline-reel { display: block; animation: viz-headline-settle var(--reel-duration, 210ms) cubic-bezier(.2,.7,.18,1) var(--reel-delay, 0ms) both; }
 .viz-headline-reel > span { display: block; height: 1lh; }
 @keyframes viz-headline-settle {
   from { transform: translateY(0); }
@@ -70,7 +70,7 @@
 .viz-tooltip {
   position: absolute;
   z-index: 2;
-  transition: left 180ms cubic-bezier(.4, 0, .2, 1), top 180ms cubic-bezier(.4, 0, .2, 1);
+  transition: left 320ms cubic-bezier(.22, .72, .18, 1), top 320ms cubic-bezier(.22, .72, .18, 1);
   max-width: calc(100% - 40px);
   pointer-events: none;
   padding: 8px 12px;

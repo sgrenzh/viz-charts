@@ -493,31 +493,33 @@ const transitPlot = charts[transitIndex]?.host.querySelector<HTMLElement>(".viz-
 if (transitPlot) new ResizeObserver(() => requestAnimationFrame(syncDonutToTransit)).observe(transitPlot);
 
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
-// Leave initially visible cards in place; reveal each other card only on its first entry.
+// Animate cards each time they enter after being outside the viewport.
 if ("IntersectionObserver" in window) {
   const revealObserver = new IntersectionObserver(entries => {
     entries.forEach(entry => {
-      if (!entry.isIntersecting || entry.intersectionRatio < 0.08) return;
-      revealObserver.unobserve(entry.target);
       const card = entry.target as HTMLElement;
-      card.style.opacity = "";
-      const frames = reducedMotion.matches
-        ? [{ opacity: 0.8 }, { opacity: 1 }]
-        : [{ opacity: 0, transform: "translateY(18px)" }, { opacity: 1, transform: "translateY(0)" }];
-      card.animate(frames, { duration: reducedMotion.matches ? 120 : 340, easing: "cubic-bezier(0.23, 1, 0.32, 1)" });
+      if (!entry.isIntersecting) {
+        if (card.dataset.revealing) return;
+        card.dataset.revealPending = "true";
+        return;
+      }
+      if (!card.dataset.revealPending) return;
+      delete card.dataset.revealPending;
+      if (reducedMotion.matches) return;
+      card.getAnimations().forEach(animation => animation.cancel());
+      card.dataset.revealing = "true";
+      const animation = card.animate([
+        { opacity: 0, transform: "translateY(48px) scale(0.97)", filter: "blur(4px)" },
+        { opacity: 1, transform: "translateY(0) scale(1)", filter: "blur(0px)" },
+      ], { duration: 650, easing: "cubic-bezier(0.2, 0.75, 0.2, 1)" });
+      animation.onfinish = () => {
+        delete card.dataset.revealing;
+        const bounds = card.getBoundingClientRect();
+        if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) card.dataset.revealPending = "true";
+      };
     });
-  }, { threshold: 0.08 });
-  charts.forEach(({ card }) => {
-    const bounds = card.getBoundingClientRect();
-    if (bounds.top >= window.innerHeight || bounds.bottom <= 0) {
-      card.style.opacity = reducedMotion.matches ? "0.8" : "0";
-      card.addEventListener("focusin", () => {
-        card.style.opacity = "";
-        revealObserver.unobserve(card);
-      }, { once: true });
-      revealObserver.observe(card);
-    }
-  });
+  }, { threshold: 0 });
+  charts.forEach(({ card }) => revealObserver.observe(card));
 }
 
 let activeFamily = "all";

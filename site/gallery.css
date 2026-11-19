@@ -248,6 +248,9 @@ dialog::backdrop { background: #0009; }
 .preview-heading h2 { margin: 0; font-size: var(--viz-type-subheading-size); font-weight: var(--viz-type-semibold); line-height: var(--viz-type-subheading-line); }
 .preview-fields {
   flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   min-block-size: 0;
   overflow: auto;
   overscroll-behavior: contain;
@@ -316,7 +319,8 @@ dialog::backdrop { background: #0009; }
 @media (prefers-reduced-motion: reduce) {
   .segmented[data-indicator]::before, .segmented span { transition: none; }
 }
-.preview-plot-options { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
+.preview-fields .option-row, .preview-fields .theme-row { margin: 0; }
+.preview-plot-options, .preview-fields .series-colors { display: contents; }
 .preview-actions {
   position: relative;
   flex: none;
