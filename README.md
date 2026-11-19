@@ -64,7 +64,7 @@ For a line or combined line and column chart, set `gradientFill: true` to fade t
 
 The chart stylesheet loads [Allo](https://allo.joshpuckett.me/) by default and shares a type scale with the gallery. Set `theme.fontFamily` to use your own font on a chart. Allo ships under the [SIL Open Font License](public/licenses/allo.txt).
 
-## Segmented capacity
+## Progress bar
 
 Set `segmented: true` on a strip chart to show item values against a capacity. The chart displays the current total and capacity above the segments; the unfilled segments represent remaining capacity. `height` controls segment height, `segmentCount` controls density, and `legend` shows or hides the key. Each item can provide its own `color`.
 

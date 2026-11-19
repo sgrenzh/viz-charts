@@ -39,12 +39,14 @@ const familyLabels = {
   stacked: "Stacked column",
   line: "Line",
   heatmap: "Heatmap",
-  strip: "Proportional strip",
+  strip: "Stacked bar",
+  progress: "Progress bar",
   donut: "Donut",
   states: "Chart states",
 };
 function chartFamily(config: ChartConfig) {
   if (config.title === "Loading state" || config.title === "Error state") return "states";
+  if (config.type === "strip" && config.segmented) return "progress";
   return config.type === "column" && config.stacked ? "stacked" : config.type;
 }
 const chartTypeLabels: Record<ReturnType<typeof chartFamily>, string> = {
@@ -55,6 +57,7 @@ const chartTypeLabels: Record<ReturnType<typeof chartFamily>, string> = {
   "line-column": "Line and column chart",
   heatmap: familyLabels.heatmap,
   strip: familyLabels.strip,
+  progress: familyLabels.progress,
   donut: "Donut chart",
   states: "Chart state",
 };
@@ -626,7 +629,7 @@ function onSegmentChange(on: HTMLInputElement, listener: () => void) {
 
 function syncPreview(index: number) {
   const config = configs[index];
-  byId("preview-heading").textContent = chartFamily(config) === "states" ? config.title : config.type === "strip" && config.segmented ? "Segmented capacity" : chartTypeLabels[chartFamily(config)];
+  byId("preview-heading").textContent = chartFamily(config) === "states" ? config.title : chartTypeLabels[chartFamily(config)];
   byId("chart-palette").parentElement!.hidden = config.title === "Error state" || (config.type === "strip" && !!config.segmented);
   byId("preview-range-label").textContent = "Sort by";
   byId("preview-range").parentElement!.hidden = config.type !== "strip" || !!config.segmented;

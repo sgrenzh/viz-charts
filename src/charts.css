@@ -84,6 +84,9 @@
 .viz-tooltip strong { display: block; margin-bottom: 4px; font-weight: var(--viz-type-semibold); }
 .viz-tooltip-row { display: flex; align-items: center; gap: 6px; }
 .viz-tooltip-row::before { content: ""; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--series-color); }
+.viz-tooltip-segmented strong { display: flex; align-items: center; gap: 6px; }
+.viz-tooltip-segmented strong::before { content: ""; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--series-color); }
+.viz-tooltip-segmented .viz-tooltip-row::before { content: none; }
 .viz-tooltip-label { min-width: 0; overflow-wrap: anywhere; }
 .viz-tooltip-value { margin-inline-start: auto; padding-inline-start: 10px; white-space: nowrap; opacity: 0.6; }
 .viz-series { display: flex; flex-wrap: wrap; gap: 12px; grid-column: 1 / -1; }
@@ -105,13 +108,11 @@
 .viz-strip-segment { cursor: pointer; }
 .viz-card[data-segmented] .viz-capacity-summary { grid-column: 2; grid-row: 1; justify-self: end; color: var(--viz-ink); font-size: var(--viz-type-label-size); line-height: var(--viz-type-label-line); font-weight: var(--viz-type-medium); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .viz-capacity-total { color: color-mix(in srgb, var(--viz-muted) 70%, var(--viz-surface)); }
-.viz-card[data-segmented] .viz-heading { min-height: 0; margin-bottom: 21px; }
-.viz-card[data-segmented] .viz-body[data-legend-position] { gap: 24px; }
+.viz-card[data-segmented] .viz-heading { min-height: 0; margin-bottom: 19px; }
+.viz-card[data-segmented] .viz-body[data-legend-position] { gap: 22px; }
 .viz-card[data-segmented] .viz-legend { display: flex; flex-wrap: wrap; gap: 8px; }
-.viz-card[data-segmented] .viz-legend button { display: inline-flex; align-items: center; gap: 8px; width: auto; padding: 6px 9px; border-radius: 8px; background: color-mix(in srgb, var(--strip-color) 10%, var(--viz-surface)); color: var(--viz-ink); }
-.viz-card[data-segmented] .viz-legend button:is(:hover, :focus-visible, [aria-pressed="true"]) { background: color-mix(in srgb, var(--strip-color) 20%, var(--viz-surface)); }
-.viz-card[data-segmented][data-has-selection] .viz-legend button[aria-pressed="false"] { background: var(--viz-grid); }
-.viz-card[data-segmented] .viz-strip-segment { transition: fill 300ms ease; }
+.viz-card[data-segmented] .viz-legend button { display: inline-flex; align-items: center; gap: 8px; width: auto; padding: 6px 9px; border-radius: 8px; background: var(--viz-grid); color: var(--viz-ink); }
+.viz-card[data-segmented] .viz-legend button:is(:hover, :focus-visible) { background: color-mix(in srgb, var(--viz-ink) 12%, var(--viz-surface)); }
 .viz-card[data-segmented] .viz-legend button { transition: background-color 300ms ease, color 300ms ease; }
 .viz-card[data-segmented] .viz-legend button:is(:hover, :active) { transform: none; }
 .viz-card[data-segmented] .viz-legend button span:nth-child(2) { color: var(--viz-muted); }

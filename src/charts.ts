@@ -365,9 +365,8 @@ function stripFill(item: StripConfig["items"][number], index: number, selected: 
   return index === selected || (selected < 0 && item.color) ? base : tint("var(--viz-page-strip-strength, 38%)", base);
 }
 
-function segmentFill(item: StripConfig["items"][number], index: number, selected: number) {
-  const base = item.color ?? (index % 3 === 0 ? color : tint(index % 3 === 1 ? "75%" : "52%", color));
-  return selected < 0 || index === selected ? base : tint("55%", base);
+function segmentFill(item: StripConfig["items"][number], index: number) {
+  return item.color ?? (index % 3 === 0 ? color : tint(index % 3 === 1 ? "75%" : "52%", color));
 }
 
 const shareFormat: AxisConfig = { format: "percent", digits: 1 };
@@ -386,7 +385,6 @@ function strip(config: StripConfig, width: number, formatValue: typeof format): 
     if (count === 1) barWidth = width;
     const gap = count > 1 ? (width - count * barWidth) / (count - 1) : 0;
     const step = barWidth + gap;
-    const selected = config.selected ?? -1;
     const boundaries: number[] = [];
     config.items.reduce((sum, item) => { boundaries.push(sum + Math.max(0, item.value)); return boundaries[boundaries.length - 1]; }, 0);
     const shapes: Shape[] = [];
@@ -394,15 +392,15 @@ function strip(config: StripConfig, width: number, formatValue: typeof format): 
       const at = (n + 0.5) / count * capacity;
       const index = boundaries.findIndex(end => at < end);
       shapes.push(shape("rect", { x: n * step, y: 0, width: barWidth, height, rx: Math.min(2, barWidth / 2, height / 2),
-        fill: index < 0 ? "var(--viz-grid)" : segmentFill(config.items[index], index, selected),
+        fill: index < 0 ? "var(--viz-grid)" : segmentFill(config.items[index], index),
         ...(index >= 0 ? { class: "viz-strip-segment", "data-strip-index": index } : {}) }));
     }
     let start = 0;
     const marks = config.items.map((item, i) => {
       const end = boundaries[i];
       const mark = { label: item.label, x: barWidth / 2 + (start + end) / 2 / capacity * Math.max(0, (count - 1) * step), y: height / 2,
-        values: [[item.label, formatValue(item.value)], ["Share", formatValue(stripShare(item.value, capacity), shareFormat)]] as [string, string][],
-        colors: [segmentFill(item, i, -1), segmentFill(item, i, -1)] };
+        values: [["Reservations", formatValue(item.value)], ["Share of capacity", formatValue(stripShare(item.value, capacity), shareFormat)]] as [string, string][],
+        colors: [segmentFill(item, i), segmentFill(item, i)] };
       start = end;
       return mark;
     });
@@ -532,6 +530,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   let width = -1;
   let active = -1;
   let pinned = false;
+  let touchTooltipIndex = -1;
   let linePointer: number | null = null;
   let retryTimer: number | undefined;
   let retrying = false;
@@ -613,7 +612,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     window.setTimeout(() => { if (target.isConnected && animation === headlineAnimation) target.textContent = text; }, settle ? 540 + Math.max(0, digitCount - 1) * 45 : 140);
   }
 
-  function display(index: number, settleHeadline = false, pointer?: PointerEvent) {
+  function display(index: number, settleHeadline = false, pointer?: PointerEvent, anchor?: HTMLElement) {
     active = index;
     const mark = layout?.marks[index];
     if (config.type === "column" || config.type === "line-column" || config.type === "range-column") {
@@ -645,6 +644,9 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     if (wasHidden) tooltip.classList.add("viz-tooltip-instant");
     const title = element("strong");
     title.textContent = mark.label;
+    const segmented = config.type === "strip" && !!config.segmented;
+    tooltip.classList.toggle("viz-tooltip-segmented", segmented);
+    if (segmented) title.style.setProperty("--series-color", mark.colors[0]);
     const rows = mark.values.map(([name, value], i) => {
       const row = element("div", "viz-tooltip-row");
       row.style.setProperty("--series-color", mark.colors[i]);
@@ -663,9 +665,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const svgBounds = svg.getBoundingClientRect();
     const pointX = pointer ? (pointer.clientX - svgBounds.left) * layout.width / (svgBounds.width || layout.width) : mark.x;
     const pointY = pointer ? (pointer.clientY - svgBounds.top) * layout.height / (svgBounds.height || layout.height) : mark.y;
-    const offset = (plotBounds.left - cardBounds.left) / scaleX + pointX - scroller.scrollLeft;
+    const anchorBounds = anchor?.getBoundingClientRect();
+    const offset = anchorBounds ? (anchorBounds.left - cardBounds.left) / scaleX + anchorBounds.width / scaleX / 2 : (plotBounds.left - cardBounds.left) / scaleX + pointX - scroller.scrollLeft;
     tooltip.style.left = Math.max(12, Math.min(card.clientWidth - tooltip.offsetWidth - 12, offset + 12)) + "px";
-    tooltip.style.top = Math.max(12, (plotBounds.top - cardBounds.top) / scaleY + pointY - tooltip.offsetHeight - 8) + "px";
+    tooltip.style.top = Math.max(12, (anchorBounds ? (anchorBounds.top - cardBounds.top) / scaleY : (plotBounds.top - cardBounds.top) / scaleY + pointY) - tooltip.offsetHeight - 8) + "px";
     if (wasHidden) { void tooltip.offsetWidth; tooltip.classList.remove("viz-tooltip-instant"); }
   }
 
@@ -763,9 +766,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
 
   function selectStrip(index: number) {
     if ((config.type !== "strip" && config.type !== "donut") || !config.items[index] || !layout?.marks[index]) return;
-    const segmented = config.type === "strip" && !!config.segmented;
-    const selection = segmented && stripSelection === index ? -1 : index;
-    stripSelection = selection;
+    stripSelection = index;
     const items = config.items;
     if (config.type === "donut") {
       const center = svg.querySelector<HTMLElement>(".viz-donut-center");
@@ -780,15 +781,14 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     }
     svg.querySelectorAll("[data-strip-index]").forEach(segment => {
       const i = Number(segment.getAttribute("data-strip-index"));
-      segment.setAttribute("fill", segmented ? segmentFill(items[i], i, selection) : stripFill(items[i], i, selection));
+      segment.setAttribute("fill", stripFill(items[i], i, index));
     });
     items.forEach((item, i) => {
-      const fill = segmented ? segmentFill(item, i, -1) : stripFill(item, i, selection);
+      const fill = stripFill(item, i, index);
       layout.marks[i].colors = [fill, fill];
-      stripRows[i]?.setAttribute("aria-pressed", String(i === selection));
-      if (!segmented) stripRows[i]?.style.setProperty("--strip-dot", fill);
+      stripRows[i]?.setAttribute("aria-pressed", String(i === index));
+      stripRows[i]?.style.setProperty("--strip-dot", fill);
     });
-    if (segmented) card.toggleAttribute("data-has-selection", selection >= 0);
     display(index);
   }
 
@@ -801,7 +801,6 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     });
     card.dataset.chart = config.type;
     card.toggleAttribute("data-segmented", config.type === "strip" && !!config.segmented);
-    card.toggleAttribute("data-has-selection", config.type === "strip" && !!config.segmented && stripSelection >= 0);
     if (options.demoState) {
       const visualState = retrying ? "loading" : options.demoState;
       card.dataset.state = visualState;
@@ -909,8 +908,9 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
         const value = element("span");
         const share = element("span");
         button.type = "button";
-        button.setAttribute("aria-pressed", String(i === stripSelection));
-        const itemColor = config.type === "donut" ? donutColor(item, i, config.items[0]?.color ?? color) : config.type === "strip" && config.segmented ? segmentFill(item, i, -1) : stripFill(item, i, stripSelection);
+        const segmented = config.type === "strip" && !!config.segmented;
+        if (!segmented) button.setAttribute("aria-pressed", String(i === stripSelection));
+        const itemColor = config.type === "donut" ? donutColor(item, i, config.items[0]?.color ?? color) : segmented ? segmentFill(item, i) : stripFill(item, i, stripSelection);
         button.style.setProperty("--strip-color", itemColor);
         button.style.setProperty("--strip-dot", itemColor);
         name.textContent = item.label;
@@ -918,9 +918,22 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
         share.textContent = formatValue(stripShare(item.value, total), shareFormat);
         button.append(name, value);
         if (config.type !== "strip" || !config.segmented) button.append(share);
-        button.addEventListener("focus", () => display(i));
-        button.addEventListener("blur", () => display(-1));
-        button.addEventListener("click", () => selectStrip(i));
+        let lastPointerType = "";
+        if (segmented) {
+          button.addEventListener("pointerdown", event => { lastPointerType = event.pointerType; });
+          button.addEventListener("pointerenter", event => { if (event.pointerType !== "touch" && touchTooltipIndex < 0) display(i, false, undefined, button); });
+          button.addEventListener("pointerleave", event => { if (event.pointerType !== "touch" && touchTooltipIndex < 0 && !button.matches(":focus-visible")) display(-1); });
+        }
+        button.addEventListener("focus", () => { if (!segmented || lastPointerType !== "touch") display(i, false, undefined, segmented ? button : undefined); });
+        button.addEventListener("blur", () => { touchTooltipIndex = -1; display(-1); });
+        button.addEventListener("click", () => {
+          if (!segmented) { selectStrip(i); return; }
+          if (lastPointerType === "touch") {
+            touchTooltipIndex = touchTooltipIndex === i ? -1 : i;
+            display(touchTooltipIndex, false, undefined, button);
+          } else { touchTooltipIndex = -1; display(i, false, undefined, button); }
+          lastPointerType = "";
+        });
         return button;
       });
       legend.append(...stripRows);
@@ -940,6 +953,17 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   }
   function closest(event: PointerEvent) {
     if (!layout) return -1;
+    if (config.type === "strip" && config.segmented) {
+      const bounds = svg.getBoundingClientRect();
+      const x = (event.clientX - bounds.left) * layout.width / (bounds.width || layout.width);
+      const y = (event.clientY - bounds.top) * layout.height / (bounds.height || layout.height);
+      if (x < 0 || x > layout.width || y < 0 || y > layout.height || !layout.shapes.length) return -1;
+      const first = layout.shapes[0].attrs;
+      const step = layout.shapes.length > 1 ? Number(layout.shapes[1].attrs.x) - Number(first.x) : layout.width;
+      const position = Math.max(0, Math.min(layout.shapes.length - 1, Math.round((x - Number(first.x) - Number(first.width) / 2) / step)));
+      const index = layout.shapes[position].attrs["data-strip-index"];
+      return index === undefined ? -1 : Number(index);
+    }
     if (config.type === "strip" || config.type === "donut") {
       const attr = config.type === "donut" ? "data-donut-index" : "data-strip-index";
       const segment = (event.target as Element).closest(`[${attr}]`);
@@ -966,6 +990,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   });
   svg.addEventListener("pointermove", event => {
     const dragging = linePointer === event.pointerId;
+    if (config.type === "strip" && config.segmented && touchTooltipIndex >= 0) return;
     if (!dragging && (pinned || event.pointerType === "touch")) return;
     const index = closest(event);
     if (isLine() && index === active && (!dragging || pinned)) return;
@@ -976,7 +1001,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   svg.addEventListener("pointerup", event => {
     if (!event.isPrimary || event.button !== 0) return;
     const index = closest(event);
-    if (config.type === "strip" || config.type === "donut") { selectStrip(index); if (config.type === "donut") display(index, false, event); }
+    if (config.type === "strip" && config.segmented) {
+      if (event.pointerType === "touch") touchTooltipIndex = index < 0 || touchTooltipIndex === index ? -1 : index;
+      display(event.pointerType === "touch" ? touchTooltipIndex : index, false, event);
+    } else if (config.type === "strip" || config.type === "donut") { selectStrip(index); if (config.type === "donut") display(index, false, event); }
     else if (index >= 0) {
       pinned = true;
       display(index, true);
@@ -984,7 +1012,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   });
   svg.addEventListener("lostpointercapture", () => { linePointer = null; });
   svg.addEventListener("pointerleave", () => {
-    if (!pinned) display(-1, true);
+    if (!pinned && touchTooltipIndex < 0) display(-1, true);
   });
   scroller.addEventListener("blur", () => {
     if (pinned && isLine()) return;
@@ -1000,7 +1028,8 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     if (!layout?.marks.length) return;
     if ((config.type === "strip" || config.type === "donut") && active >= 0 && [" ", "Enter"].includes(event.key)) {
       event.preventDefault();
-      selectStrip(active);
+      if (config.type === "strip" && config.segmented) display(active);
+      else selectStrip(active);
       return;
     }
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -1016,11 +1045,29 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     if (isLine()) pinned = true;
     display(index);
   });
+  const dismissSegmentTooltip = () => {
+    if (config.type !== "strip" || !config.segmented) return;
+    touchTooltipIndex = -1;
+    display(-1);
+  };
+  const dismissOutside = (event: PointerEvent) => {
+    if (config.type !== "strip" || !config.segmented) return;
+    const target = event.target as Element | null;
+    if (target && card.contains(target) && (target.closest(".viz-legend button") || (svg.contains(target) && closest(event) >= 0))) return;
+    dismissSegmentTooltip();
+  };
+  const dismissOnEscape = (event: KeyboardEvent) => {
+    if (event.key === "Escape" && card.contains(host.ownerDocument.activeElement)) dismissSegmentTooltip();
+  };
+  host.ownerDocument.addEventListener("pointerdown", dismissOutside);
+  host.ownerDocument.addEventListener("keydown", dismissOnEscape);
+  host.ownerDocument.addEventListener("scroll", dismissSegmentTooltip, true);
   const observer = new ResizeObserver(draw);
   render();
   observer.observe(scroller);
   return {
     update(next: ChartConfig) {
+      touchTooltipIndex = -1;
       if (next.type === "strip" || next.type === "donut") {
         const previous = config.type === next.type ? config : undefined;
         const defaultItem = next.items[next.selected ?? -1];
@@ -1047,6 +1094,6 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const data = layout ?? chartLayout(config, 320, options);
       return data.marks.flatMap(mark => mark.values.map(([series, value]) => ({ label: mark.label, series, value })));
     },
-    destroy() { observer.disconnect(); if (retryTimer !== undefined) window.clearTimeout(retryTimer); card.remove(); },
+    destroy() { observer.disconnect(); host.ownerDocument.removeEventListener("pointerdown", dismissOutside); host.ownerDocument.removeEventListener("keydown", dismissOnEscape); host.ownerDocument.removeEventListener("scroll", dismissSegmentTooltip, true); if (retryTimer !== undefined) window.clearTimeout(retryTimer); card.remove(); },
   };
 }
