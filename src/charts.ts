@@ -78,6 +78,9 @@ interface StripConfig extends BaseConfig {
   selected?: number;
   legend?: boolean;
   legendPosition?: LegendPosition;
+  segmented?: boolean;
+  capacity?: number;
+  segmentCount?: number;
 }
 
 export interface DonutConfig extends BaseConfig {
@@ -362,9 +365,43 @@ function stripFill(item: StripConfig["items"][number], index: number, selected: 
   return index === selected || (selected < 0 && item.color) ? base : tint("var(--viz-page-strip-strength, 38%)", base);
 }
 
+function segmentFill(item: StripConfig["items"][number], index: number, selected: number) {
+  const base = item.color ?? (index % 3 === 0 ? color : tint(index % 3 === 1 ? "75%" : "52%", color));
+  return selected < 0 || index === selected ? base : tint("28%", base);
+}
+
 const shareFormat: AxisConfig = { format: "percent", digits: 1 };
 
 function strip(config: StripConfig, width: number, formatValue: typeof format): Layout {
+  if (config.segmented) {
+    const height = config.height ?? 40;
+    const total = stripTotal(config.items);
+    const capacity = Math.max(config.capacity ?? total, total, Number.EPSILON);
+    const count = Math.max(1, Math.min(config.segmentCount ?? 80, Math.floor(width / 3)));
+    const step = width / count;
+    const barWidth = Math.max(1, step - Math.min(2, step * 0.25));
+    const selected = config.selected ?? -1;
+    const boundaries: number[] = [];
+    config.items.reduce((sum, item) => { boundaries.push(sum + Math.max(0, item.value)); return boundaries[boundaries.length - 1]; }, 0);
+    const shapes: Shape[] = [];
+    for (let n = 0; n < count; n++) {
+      const at = (n + 0.5) / count * capacity;
+      const index = boundaries.findIndex(end => at < end);
+      shapes.push(shape("rect", { x: n * step, y: 0, width: barWidth, height, rx: subtleRadius(barWidth, 2),
+        fill: index < 0 ? "var(--viz-grid)" : segmentFill(config.items[index], index, selected),
+        ...(index >= 0 ? { class: "viz-strip-segment", "data-strip-index": index } : {}) }));
+    }
+    let start = 0;
+    const marks = config.items.map((item, i) => {
+      const end = boundaries[i];
+      const mark = { label: item.label, x: (start + end) / 2 / capacity * width, y: height / 2,
+        values: [[item.label, formatValue(item.value)], ["Share", formatValue(stripShare(item.value, capacity), shareFormat)]] as [string, string][],
+        colors: [segmentFill(item, i, selected), segmentFill(item, i, selected)] };
+      start = end;
+      return mark;
+    });
+    return { width, height, shapes, marks };
+  }
   const height = config.height ?? 276;
   const total = stripTotal(config.items);
   const requestedSelection = config.selected ?? -1;
@@ -735,10 +772,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     }
     svg.querySelectorAll("[data-strip-index]").forEach(segment => {
       const i = Number(segment.getAttribute("data-strip-index"));
-      segment.setAttribute("fill", stripFill(items[i], i, index));
+      segment.setAttribute("fill", config.type === "strip" && config.segmented ? segmentFill(items[i], i, index) : stripFill(items[i], i, index));
     });
     items.forEach((item, i) => {
-      const fill = stripFill(item, i, index);
+      const fill = config.type === "strip" && config.segmented ? segmentFill(item, i, index) : stripFill(item, i, index);
       layout.marks[i].colors = [fill, fill];
       stripRows[i]?.setAttribute("aria-pressed", String(i === index));
       stripRows[i]?.style.setProperty("--strip-dot", fill);
@@ -754,6 +791,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       else card.style.removeProperty("--viz-" + token);
     });
     card.dataset.chart = config.type;
+    card.toggleAttribute("data-segmented", config.type === "strip" && !!config.segmented);
     if (options.demoState) {
       const visualState = retrying ? "loading" : options.demoState;
       card.dataset.state = visualState;
@@ -771,10 +809,13 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const state = element("div", "viz-state-body");
       if (visualState === "loading") {
         state.setAttribute("aria-hidden", "true");
-        const spinner = element("span", "viz-loading-spinner"); spinner.setAttribute("aria-hidden", "true"); state.append(spinner);
+        const indicator = element("div", "viz-loading-indicator");
+        const spinner = element("span", "viz-loading-spinner");
+        const label = element("span", "viz-loading-label"); label.textContent = "Loading...";
+        indicator.append(spinner, label); state.append(indicator);
       } else {
         const message = element("p", "viz-error-message"); message.textContent = "Couldn’t load chart";
-        const retry = element("button", "viz-retry"); retry.type = "button"; retry.textContent = "Retry";
+        const retry = element("button", "viz-button viz-button-small viz-button-error"); retry.type = "button"; retry.textContent = "Retry";
         retry.addEventListener("click", event => {
           event.stopPropagation();
           retrying = true;
@@ -809,7 +850,14 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       headingCopy.append(metric);
     }
     header.replaceChildren(headingCopy);
-    if (options.controls) {
+    if (config.type === "strip" && config.segmented) {
+      const summary = element("span", "viz-capacity-summary");
+      const current = stripTotal(config.items);
+      const capacity = Math.max(config.capacity ?? current, current);
+      const compact: AxisConfig = { format: "compact" };
+      summary.textContent = `${(options.formatValue ?? format)(current, compact)} / ${(options.formatValue ?? format)(capacity, compact)}`;
+      header.append(summary);
+    } else if (options.controls) {
       header.append(options.controls);
     } else if (config.period) {
       const period = element("span", "viz-period");
@@ -820,7 +868,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     delete chartBody.dataset.legendPosition;
     stripRows = [];
     if ((config.type === "strip" || config.type === "donut") && config.legend !== false) {
-      chartBody.dataset.legendPosition = config.legendPosition ?? "right";
+      chartBody.dataset.legendPosition = config.type === "strip" && config.segmented ? "below" : config.legendPosition ?? "right";
       const legend = element("div", "viz-legend");
       const total = stripTotal(config.items);
       const formatValue = options.formatValue ?? format;
@@ -831,12 +879,14 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
         const share = element("span");
         button.type = "button";
         button.setAttribute("aria-pressed", String(i === stripSelection));
-        button.style.setProperty("--strip-color", config.type === "donut" ? donutColor(item, i, config.items[0]?.color ?? color) : item.color ?? color);
-        button.style.setProperty("--strip-dot", config.type === "donut" ? donutColor(item, i, config.items[0]?.color ?? color) : stripFill(item, i, stripSelection));
+        const itemColor = config.type === "donut" ? donutColor(item, i, config.items[0]?.color ?? color) : config.type === "strip" && config.segmented ? segmentFill(item, i, stripSelection) : stripFill(item, i, stripSelection);
+        button.style.setProperty("--strip-color", itemColor);
+        button.style.setProperty("--strip-dot", itemColor);
         name.textContent = item.label;
         value.textContent = formatValue(item.value);
         share.textContent = formatValue(stripShare(item.value, total), shareFormat);
-        button.append(name, value, share);
+        button.append(name, value);
+        if (config.type !== "strip" || !config.segmented) button.append(share);
         button.addEventListener("focus", () => display(i));
         button.addEventListener("blur", () => display(-1));
         button.addEventListener("click", () => selectStrip(i));
@@ -890,7 +940,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     if (isLine() && index === active && (!dragging || pinned)) return;
     if (dragging) pinned = true;
     if (config.type === "donut" && index >= 0 && index !== stripSelection) selectStrip(index);
-    display(index, false, config.type === "donut" ? event : undefined);
+    display(index, false, config.type === "donut" || (config.type === "strip" && config.segmented) ? event : undefined);
   });
   svg.addEventListener("pointerup", event => {
     if (!event.isPrimary || event.button !== 0) return;

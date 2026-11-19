@@ -31,6 +31,9 @@ const donutLegend = byId<HTMLInputElement>("donut-legend");
 const donutCenter = byId<HTMLInputElement>("donut-center");
 const donutWidth = byId<HTMLSelectElement>("donut-width");
 const donutGap = byId<HTMLSelectElement>("donut-gap");
+const capacityKey = byId<HTMLInputElement>("capacity-key");
+const segmentHeight = byId<HTMLSelectElement>("segment-height");
+const segmentCount = byId<HTMLSelectElement>("segment-count");
 const source = byId<HTMLTextAreaElement>("config");
 const status = byId("status");
 const familyLabels = {
@@ -267,7 +270,7 @@ function syncSelectDropdown(select: HTMLSelectElement) {
   const label = document.getElementById(select.getAttribute("aria-labelledby") ?? "")?.textContent ?? "";
   selectDropdowns.get(select)?.refresh(Array.from(select.options, option => option.textContent), select.selectedIndex, label);
 }
-for (const select of [sitePalette, chartPalette, legendPosition, donutWidth, donutGap]) {
+for (const select of [sitePalette, chartPalette, legendPosition, donutWidth, donutGap, segmentHeight, segmentCount]) {
   const dropdown = createDropdown(`${select.id}-menu`, index => {
     select.selectedIndex = index;
     select.dispatchEvent(new Event("change", { bubbles: true }));
@@ -312,7 +315,7 @@ document.querySelectorAll<HTMLElement>(".segmented").forEach(segment => {
 function viewsFor(index: number) {
   const config = configs[index];
   if (chartFamily(config) === "states") return [];
-  if (config.type === "strip") return stripViews;
+  if (config.type === "strip") return config.segmented ? [] : stripViews;
   if (config.type === "donut") return [];
   if (config.type === "heatmap") return calendarRanges;
   return viewsByPreset[index].length ? viewsByPreset[index] : monthlyRanges;
@@ -466,9 +469,6 @@ function stateOptions(index: number) {
 const charts = presets.map(({ layout, formatHeadline }, index) => {
   const card = document.createElement("div");
   card.className = "gallery-tile";
-  if (chartFamily(configs[index]) === "states") {
-    const label = document.createElement("span"); label.className = "state-example-label"; label.textContent = configs[index].title; card.append(label);
-  }
   if (layout) card.dataset.layout = layout;
   const host = document.createElement("div");
   host.className = "chart-theme";
@@ -620,9 +620,19 @@ function onSegmentChange(on: HTMLInputElement, listener: () => void) {
 
 function syncPreview(index: number) {
   const config = configs[index];
-  byId("preview-heading").textContent = chartTypeLabels[chartFamily(config)];
+  byId("preview-heading").textContent = chartFamily(config) === "states" ? config.title : config.type === "strip" && config.segmented ? "Segmented capacity" : chartTypeLabels[chartFamily(config)];
+  byId("chart-palette").parentElement!.hidden = config.title === "Error state";
   byId("preview-range-label").textContent = "Sort by";
-  byId("preview-range").parentElement!.hidden = config.type !== "strip";
+  byId("preview-range").parentElement!.hidden = config.type !== "strip" || !!config.segmented;
+  const isCapacity = config.type === "strip" && !!config.segmented;
+  byId("capacity-key-field").hidden = !isCapacity;
+  byId("segment-height-field").hidden = !isCapacity;
+  byId("segment-count-field").hidden = !isCapacity;
+  selectSegment(capacityKey, isCapacity && config.legend !== false);
+  segmentHeight.value = String(isCapacity ? config.height ?? 40 : 40);
+  segmentCount.value = String(isCapacity ? config.segmentCount ?? 80 : 80);
+  syncSelectDropdown(segmentHeight);
+  syncSelectDropdown(segmentCount);
   const isState = chartFamily(config) === "states";
   byId("loading-style-field").hidden = config.title !== "Loading state";
   byId<HTMLInputElement>("loading-skeleton").checked = loadingStyle === "skeleton";
@@ -648,7 +658,7 @@ function syncPreview(index: number) {
   donutGap.value = isDonut ? String(config.gap ?? 4) : "4";
   syncSelectDropdown(donutWidth);
   syncSelectDropdown(donutGap);
-  byId("legend-position-field").hidden = config.type !== "strip" && (!isDonut || config.legend === false);
+  byId("legend-position-field").hidden = isCapacity || (config.type !== "strip" && (!isDonut || config.legend === false));
   legendPosition.value = config.type === "strip" || isDonut ? config.legendPosition ?? "right" : "right";
   syncSelectDropdown(legendPosition);
   byId("show-volume-field").hidden = config.type !== "line-column";
@@ -1017,6 +1027,18 @@ onSegmentChange(donutLegend, () => {
   const config = configs[previewIndex];
   if (config?.type === "donut") update({ ...config, legend: donutLegend.checked });
 });
+onSegmentChange(capacityKey, () => {
+  const config = configs[previewIndex];
+  if (config?.type === "strip" && config.segmented) update({ ...config, legend: capacityKey.checked });
+});
+segmentHeight.addEventListener("change", () => {
+  const config = configs[previewIndex];
+  if (config?.type === "strip" && config.segmented) update({ ...config, height: Number(segmentHeight.value) });
+});
+segmentCount.addEventListener("change", () => {
+  const config = configs[previewIndex];
+  if (config?.type === "strip" && config.segmented) update({ ...config, segmentCount: Number(segmentCount.value) });
+});
 onSegmentChange(donutCenter, () => {
   const config = configs[previewIndex];
   if (config?.type === "donut") update({ ...config, showCenter: donutCenter.checked });
@@ -1090,6 +1112,7 @@ function readConfig(text: string): ChartConfig {
     if (!Array.isArray(parsed.items) || !parsed.items.every(item => isRecord(item) && typeof item.label === "string"
       && finite(item.value) && item.value >= 0 && optionalText(item.color))) throw new Error("Segments need labels and nonnegative values.");
     if ((parsed.legend !== undefined && typeof parsed.legend !== "boolean") || (parsed.selected !== undefined && (!Number.isInteger(parsed.selected) || !finite(parsed.selected) || parsed.selected < 0 || parsed.selected >= parsed.items.length))) throw new Error("Check the key and selected segment.");
+    if (parsed.type === "strip" && ((parsed.segmented !== undefined && typeof parsed.segmented !== "boolean") || !within(parsed.capacity, 0.001, 1e15) || !within(parsed.segmentCount, 1, 500) || (parsed.segmentCount !== undefined && !Number.isInteger(parsed.segmentCount)) || (parsed.segmented && finite(parsed.capacity) && parsed.capacity < parsed.items.reduce((sum, item) => sum + item.value, 0)))) throw new Error("Capacity must cover the item total; check the segment count.");
     if (parsed.type === "donut" && (!within(parsed.ringWidth, 0.04, 0.2) || !within(parsed.gap, 0, 16) || (parsed.showCenter !== undefined && typeof parsed.showCenter !== "boolean"))) throw new Error("Check the donut appearance settings.");
     if (parsed.legendPosition !== undefined && parsed.legendPosition !== "below" && parsed.legendPosition !== "right" && parsed.legendPosition !== "left") {
       throw new Error("Choose below, right, or left for the list position.");

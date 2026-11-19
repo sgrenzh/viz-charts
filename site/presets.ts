@@ -46,4 +46,7 @@ export const presets: { config: ChartConfig; layout?: "wide" | "calendar"; previ
   ] } },
   { previousTitle: "Loading state", config: { version: 1, type: "column", title: "Loading state", height: 200, labels: [], series: [{ name: "Values", values: [] }] } },
   { previousTitle: "Error state", config: { version: 1, type: "column", title: "Error state", headline: "—", height: 200, labels: [], series: [{ name: "Values", values: [] }] } },
+  { previousTitle: "Context usage", config: { version: 1, type: "strip", title: "Context usage", segmented: true, capacity: 200_000, segmentCount: 80, height: 40, legendPosition: "below", items: [
+    { label: "Chat history", value: 41_000 }, { label: "Documents", value: 40_000 }, { label: "Browser tabs", value: 31_000 }, { label: "Activity", value: 31_000 }, { label: "Notes", value: 8_000 },
+  ] } },
 ];

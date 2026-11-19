@@ -64,6 +64,20 @@ For a line or combined line and column chart, set `gradientFill: true` to fade t
 
 The chart stylesheet loads [Allo](https://allo.joshpuckett.me/) by default and shares a type scale with the gallery. Set `theme.fontFamily` to use your own font on a chart. Allo ships under the [SIL Open Font License](public/licenses/allo.txt).
 
+## Segmented capacity
+
+Set `segmented: true` on a strip chart to show item values against a capacity. The chart displays the current total and capacity above the segments; the unfilled segments represent remaining capacity. `height` controls segment height, `segmentCount` controls density, and `legend` shows or hides the key. Each item can provide its own `color`.
+
+```js
+mountChart(document.getElementById("chart"), {
+  version: 1, type: "strip", title: "Context usage", segmented: true,
+  capacity: 200000, height: 40, segmentCount: 80, legend: true,
+  items: [{ label: "Chat history", value: 41000 }, { label: "Documents", value: 40000 }],
+});
+```
+
+Capacity must be at least the sum of the item values. Segment counts adapt to narrower containers, so the display is an approximation; the displayed totals and tooltips use the exact values.
+
 ## Donut charts
 
 Donut charts show each item's share of the total. Select a segment or a key entry to update the centre percentage. The key can be placed below, left or right, or hidden. Configure the centre value, ring thickness and spacing in the gallery, or in code:

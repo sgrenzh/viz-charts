@@ -464,5 +464,3 @@ body:has(.preview-dialog[open]) .chart-nav { opacity: 0; }
   :is(button, input, select, textarea):focus-visible, .segmented input:focus-visible + span,
   .chart-theme .dropdown-trigger:focus-visible { outline-color: Highlight; }
 }
-
-.state-example-label { position: absolute; inset: 20px auto auto 24px; color: var(--muted); font-size: var(--viz-type-label-size); }
