@@ -40,6 +40,8 @@ const chart = mountChart(document.getElementById("chart"), {
 
 Call `chart.update(config)` when your data or settings change and `chart.destroy()` when you remove the chart.
 
+To explore a chart with a keyboard, focus its plot and use the arrow keys, Home or End. Press Escape or click outside the chart to dismiss its tooltip. Touch users can tap a mark to inspect it and tap it again or elsewhere to dismiss it. Strip and donut charts also let users select an item with Enter or Space; progress bars show details without changing selection.
+
 Range column charts display a low-to-high interval for each label. They can use values from any data source; update the chart when new values arrive:
 
 ```js

@@ -556,6 +556,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   const svg = svgElement("svg", { role: "img" });
   const lineMarkers = svgElement("g", { class: "viz-line-markers", "aria-hidden": "true", "pointer-events": "none" });
   tooltip.hidden = true;
+  tooltip.id = `viz-tooltip-${chartId}`;
   tooltip.setAttribute("role", "status");
   scroller.tabIndex = 0;
   scroller.setAttribute("role", "group");
@@ -640,6 +641,8 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     })));
     const wasHidden = tooltip.hidden;
     tooltip.hidden = !mark;
+    if (mark) scroller.setAttribute("aria-describedby", tooltip.id);
+    else scroller.removeAttribute("aria-describedby");
     if (!mark) return;
     if (wasHidden) tooltip.classList.add("viz-tooltip-instant");
     const title = element("strong");
@@ -980,7 +983,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   });
   svg.addEventListener("pointermove", event => {
     const dragging = linePointer === event.pointerId;
-    if (config.type === "strip" && config.segmented && touchTooltipIndex >= 0) return;
+    if (touchTooltipIndex >= 0 && !dragging) return;
     if (!dragging && (pinned || event.pointerType === "touch")) return;
     const index = closest(event);
     if (isLine() && index === active && (!dragging || pinned)) return;
@@ -991,6 +994,19 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   svg.addEventListener("pointerup", event => {
     if (!event.isPrimary || event.button !== 0) return;
     const index = closest(event);
+    if (event.pointerType === "touch" && !(config.type === "strip" && config.segmented)) {
+      if (index < 0 || touchTooltipIndex === index) {
+        touchTooltipIndex = -1;
+        pinned = false;
+        display(-1, true);
+      } else {
+        touchTooltipIndex = index;
+        if (config.type === "strip" || config.type === "donut") selectStrip(index);
+        else pinned = true;
+        display(index, true, config.type === "donut" ? event : undefined);
+      }
+      return;
+    }
     if (config.type === "strip" && config.segmented) {
       if (event.pointerType === "touch") touchTooltipIndex = index < 0 || touchTooltipIndex === index ? -1 : index;
       display(event.pointerType === "touch" ? touchTooltipIndex : index, false, event);
@@ -1005,13 +1021,14 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     if (!pinned && touchTooltipIndex < 0) display(-1, true);
   });
   scroller.addEventListener("blur", () => {
-    if (pinned && isLine()) return;
     pinned = false;
+    touchTooltipIndex = -1;
     display(-1);
   });
   scroller.addEventListener("keydown", event => {
     if (event.key === "Escape") {
       pinned = false;
+      touchTooltipIndex = -1;
       display(-1, true);
       return;
     }
@@ -1035,23 +1052,22 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     if (isLine()) pinned = true;
     display(index);
   });
-  const dismissSegmentTooltip = () => {
-    if (config.type !== "strip" || !config.segmented) return;
+  const dismissTooltip = () => {
+    pinned = false;
     touchTooltipIndex = -1;
-    display(-1);
+    if (!tooltip.hidden) display(-1);
   };
   const dismissOutside = (event: PointerEvent) => {
-    if (config.type !== "strip" || !config.segmented) return;
     const target = event.target as Element | null;
-    if (target && card.contains(target) && (target.closest(".viz-legend button") || (svg.contains(target) && closest(event) >= 0))) return;
-    dismissSegmentTooltip();
+    if (target && card.contains(target) && (target.closest(".viz-legend button") || (svg.contains(target) && (config.type !== "strip" || !config.segmented || closest(event) >= 0)))) return;
+    dismissTooltip();
   };
   const dismissOnEscape = (event: KeyboardEvent) => {
-    if (event.key === "Escape" && card.contains(host.ownerDocument.activeElement)) dismissSegmentTooltip();
+    if (event.key === "Escape" && (touchTooltipIndex >= 0 || card.contains(host.ownerDocument.activeElement))) dismissTooltip();
   };
   host.ownerDocument.addEventListener("pointerdown", dismissOutside);
   host.ownerDocument.addEventListener("keydown", dismissOnEscape);
-  host.ownerDocument.addEventListener("scroll", dismissSegmentTooltip, true);
+  host.ownerDocument.addEventListener("scroll", dismissTooltip, true);
   const observer = new ResizeObserver(draw);
   render();
   observer.observe(scroller);
@@ -1084,6 +1100,6 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const data = layout ?? chartLayout(config, 320, options);
       return data.marks.flatMap(mark => mark.values.map(([series, value]) => ({ label: mark.label, series, value })));
     },
-    destroy() { observer.disconnect(); host.ownerDocument.removeEventListener("pointerdown", dismissOutside); host.ownerDocument.removeEventListener("keydown", dismissOnEscape); host.ownerDocument.removeEventListener("scroll", dismissSegmentTooltip, true); if (retryTimer !== undefined) window.clearTimeout(retryTimer); card.remove(); },
+    destroy() { observer.disconnect(); host.ownerDocument.removeEventListener("pointerdown", dismissOutside); host.ownerDocument.removeEventListener("keydown", dismissOnEscape); host.ownerDocument.removeEventListener("scroll", dismissTooltip, true); if (retryTimer !== undefined) window.clearTimeout(retryTimer); card.remove(); },
   };
 }
