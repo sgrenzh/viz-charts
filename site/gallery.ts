@@ -40,8 +40,10 @@ const familyLabels = {
   heatmap: "Heatmap",
   strip: "Proportional strip",
   donut: "Donut",
+  states: "Chart states",
 };
 function chartFamily(config: ChartConfig) {
+  if (config.title === "Loading state" || config.title === "Error state") return "states";
   return config.type === "column" && config.stacked ? "stacked" : config.type;
 }
 const chartTypeLabels: Record<ReturnType<typeof chartFamily>, string> = {
@@ -53,6 +55,7 @@ const chartTypeLabels: Record<ReturnType<typeof chartFamily>, string> = {
   heatmap: familyLabels.heatmap,
   strip: familyLabels.strip,
   donut: "Donut chart",
+  states: "Chart state",
 };
 const chartThemes = ["system", "light", "dark"] as const;
 const chartPalettes = ["orange", "blue", "purple", "green", "monochrome"] as const;
@@ -115,6 +118,7 @@ const viewsByPreset: View[][] = [
   [{ label: "24 hours", count: 1 }, { label: "One week" }],
   [{ label: "24 hours", count: 1 }, { label: "One week" }],
   [{ label: "24 hours", count: 1 }, { label: "One week" }],
+  [], [], [],
 ];
 const samplesPerDay = [1, 4, 1, 3, 1, 8, 1, 24, 6, 24];
 const stripViews: View[] = [{ label: "By item count" }, { label: "By category" }];
@@ -307,6 +311,7 @@ document.querySelectorAll<HTMLElement>(".segmented").forEach(segment => {
 
 function viewsFor(index: number) {
   const config = configs[index];
+  if (chartFamily(config) === "states") return [];
   if (config.type === "strip") return stripViews;
   if (config.type === "donut") return [];
   if (config.type === "heatmap") return calendarRanges;
@@ -333,6 +338,7 @@ function rawViewConfig(index: number): ChartConfig {
   const base = configs[index];
   const view = viewsFor(index)[selectedViews[index]];
   const config = { ...base, performance: demoPerformance(index, base, view) };
+  if (chartFamily(config) === "states") return config;
   if (config.type === "strip" && selectedViews[index] === 1) {
     const selectedItem = config.items[config.selected ?? -1];
     const items = config.items.slice().sort((a, b) => a.label.localeCompare(b.label));
@@ -435,7 +441,7 @@ function createChartControls(index: number) {
     range.refresh(labels, selectedViews[index], config.type === "strip" ? "Sort by" : "Date range");
     homeRange.refresh(labels, selectedViews[index], "Date range");
     detailRange.refresh(labels, selectedViews[index], "Date range");
-    homeRange.root.hidden = detailRange.root.hidden = config.type === "strip" || config.type === "donut";
+    homeRange.root.hidden = detailRange.root.hidden = config.type === "strip" || config.type === "donut" || chartFamily(config) === "states";
     codeButton.setAttribute("aria-label", `Code for ${config.title}`);
   }
   codeButton.addEventListener("click", () => {
@@ -452,9 +458,17 @@ function createChartControls(index: number) {
 }
 
 let transitBarWidth = 4;
+let loadingStyle: "skeleton" | "spinner" = "skeleton";
+function stateOptions(index: number) {
+  const title = configs[index].title;
+  return { demoState: title === "Loading state" ? "loading" as const : title === "Error state" ? "error" as const : undefined, loadingStyle };
+}
 const charts = presets.map(({ layout, formatHeadline }, index) => {
   const card = document.createElement("div");
   card.className = "gallery-tile";
+  if (chartFamily(configs[index]) === "states") {
+    const label = document.createElement("span"); label.className = "state-example-label"; label.textContent = configs[index].title; card.append(label);
+  }
   if (layout) card.dataset.layout = layout;
   const host = document.createElement("div");
   host.className = "chart-theme";
@@ -474,7 +488,7 @@ const charts = presets.map(({ layout, formatHeadline }, index) => {
   actions.append(settingsButton);
   card.append(host, actions);
   gallery.append(card);
-  return { card, host, codeButton, range, homeRange, detailRange, refresh, settingsButton, ...mountChart(host, previewConfig(index), { formatHeadline, controls: homeRange, donutRingWidth: () => transitBarWidth }) };
+  return { card, host, codeButton, range, homeRange, detailRange, refresh, settingsButton, ...mountChart(host, previewConfig(index), { formatHeadline, controls: homeRange, donutRingWidth: () => transitBarWidth, ...stateOptions(index) }) };
 });
 
 
@@ -509,7 +523,7 @@ if ("IntersectionObserver" in window) {
       card.getAnimations().forEach(animation => animation.cancel());
       card.dataset.revealing = "true";
       const animation = card.animate([
-        { opacity: 0, transform: "translateY(48px) scale(0.97)", filter: "blur(4px)" },
+        { opacity: 0, transform: "translateY(10px) scale(0.995)", filter: "blur(5px)" },
         { opacity: 1, transform: "translateY(0) scale(1)", filter: "blur(0px)" },
       ], { duration: 650, easing: "cubic-bezier(0.2, 0.75, 0.2, 1)" });
       animation.onfinish = () => {
@@ -609,7 +623,11 @@ function syncPreview(index: number) {
   byId("preview-heading").textContent = chartTypeLabels[chartFamily(config)];
   byId("preview-range-label").textContent = "Sort by";
   byId("preview-range").parentElement!.hidden = config.type !== "strip";
-  const hasAxes = "series" in config || config.type === "range-column";
+  const isState = chartFamily(config) === "states";
+  byId("loading-style-field").hidden = config.title !== "Loading state";
+  byId<HTMLInputElement>("loading-skeleton").checked = loadingStyle === "skeleton";
+  byId<HTMLInputElement>("loading-spinner").checked = loadingStyle === "spinner";
+  const hasAxes = !isState && ("series" in config || config.type === "range-column");
   byId("axes").hidden = !hasAxes;
   selectSegment(xAxis, hasAxes && config.xAxis?.show !== false);
   selectSegment(yAxis, hasAxes && config.yAxis?.show !== false);
@@ -635,7 +653,7 @@ function syncPreview(index: number) {
   syncSelectDropdown(legendPosition);
   byId("show-volume-field").hidden = config.type !== "line-column";
   selectSegment(showVolume, config.type === "line-column" && config.showVolume !== false);
-  byId("performance-field").hidden = !config.headline || !("series" in config);
+  byId("performance-field").hidden = isState || !config.headline || !("series" in config);
   selectSegment(performance, config.showPerformance !== false);
   renderColorControls(config);
   updatePreviewFade();
@@ -736,7 +754,7 @@ function showPreview(index: number) {
   previewActions.replaceChildren(charts[index].codeButton);
   if (opening) preview.showModal();
   previewFields.scrollTop = 0;
-  detail = mountChart(previewHost, previewConfig(index), { formatHeadline: presets[index].formatHeadline, controls: charts[index].detailRange, donutRingWidth: () => transitBarWidth });
+  detail = mountChart(previewHost, previewConfig(index), { formatHeadline: presets[index].formatHeadline, controls: charts[index].detailRange, donutRingWidth: () => transitBarWidth, ...stateOptions(index) });
   detailPlot = previewHost.querySelector<HTMLElement>(".viz-plot");
   if (detailPlot) detailResize.observe(detailPlot);
   if (homeCard) detailResize.observe(homeCard);
@@ -964,6 +982,15 @@ chartPalette.addEventListener("change", () => {
   saveChartAppearance(index);
   if (previewIndex === index) syncPreview(index);
 });
+for (const id of ["loading-skeleton", "loading-spinner"]) {
+  byId<HTMLInputElement>(id).addEventListener("change", () => {
+    loadingStyle = id === "loading-spinner" ? "spinner" : "skeleton";
+    const index = previewIndex;
+    if (index < 0) return;
+    charts[index].setLoadingStyle(loadingStyle);
+    detail?.setLoadingStyle(loadingStyle);
+  });
+}
 for (const dialog of [siteSettings, preview, editor]) {
   const dismiss = () => {
     if (dialog === preview) closePreview();

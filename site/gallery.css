@@ -423,7 +423,7 @@ dialog::backdrop { background: #0009; }
     grid-template-rows: minmax(0, 1fr) auto;
     block-size: 100%;
   }
-  .preview-stage { grid-template-rows: minmax(0, 1fr); min-block-size: 0; padding-block: 8px; }
+  .preview-stage { grid-template-rows: minmax(0, 1fr); min-block-size: 0; padding-block: 24px; }
   .preview-chart { transform: scale(var(--preview-scale, 1)); }
   .preview-options { max-block-size: 50dvh; }
 }
@@ -464,3 +464,5 @@ body:has(.preview-dialog[open]) .chart-nav { opacity: 0; }
   :is(button, input, select, textarea):focus-visible, .segmented input:focus-visible + span,
   .chart-theme .dropdown-trigger:focus-visible { outline-color: Highlight; }
 }
+
+.state-example-label { position: absolute; inset: 20px auto auto 24px; color: var(--muted); font-size: var(--viz-type-label-size); }

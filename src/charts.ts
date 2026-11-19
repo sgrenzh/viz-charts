@@ -108,6 +108,8 @@ export interface ChartOptions {
   formatHeadline?: (value: number) => string;
   controls?: HTMLElement;
   donutRingWidth?: () => number;
+  demoState?: "loading" | "error";
+  loadingStyle?: "skeleton" | "spinner";
 }
 
 let nextChartId = 0;
@@ -444,7 +446,9 @@ function donut(config: DonutConfig, width: number, formatValue: typeof format, d
   const visibleCount = config.items.filter(item => item.value > 0).length;
   const gapAngle = visibleCount > 1 && radius ? Math.min((config.gap ?? 4) / radius, Math.PI / visibleCount) : 0;
   const shapeArc = arc().innerRadius(Math.max(0, outer - thickness)).outerRadius(outer)
-    .cornerRadius(subtleRadius(thickness, 4)).padRadius(radius);
+    .cornerRadius(Math.min(thickness / 2, Math.max(0.5, diameter * 0.025))).padRadius(radius);
+  const hitArc = arc().innerRadius(Math.max(0, outer - thickness - 9)).outerRadius(outer + 9).padRadius(radius);
+  const hits: Shape[] = [];
   const shapes: Shape[] = [];
   const marks: Mark[] = [];
   let angle = 0;
@@ -455,12 +459,15 @@ function donut(config: DonutConfig, width: number, formatValue: typeof format, d
     const middle = (angle + next) / 2;
     if (share > 0) {
       const d = shapeArc({ innerRadius: Math.max(0, outer - thickness), outerRadius: outer, startAngle: angle, endAngle: next, padAngle: Math.min(gapAngle, (next - angle) * 0.8) });
-      if (d) shapes.push(shape("path", { d, transform: `translate(${cx} ${cy})`, fill, "data-donut-index": i, class: "viz-donut-segment" }));
+      if (d) shapes.push(shape("path", { d, transform: `translate(${cx} ${cy})`, fill, class: "viz-donut-segment" }));
+      const hit = hitArc({ innerRadius: Math.max(0, outer - thickness - 9), outerRadius: outer + 9, startAngle: angle, endAngle: next, padAngle: Math.min(gapAngle, (next - angle) * 0.8) });
+      if (hit) hits.push(shape("path", { d: hit, transform: `translate(${cx} ${cy})`, fill: "transparent", "data-donut-index": i, class: "viz-donut-hit" }));
     }
     marks.push({ x: cx + radius * Math.sin(middle), y: cy - radius * Math.cos(middle), label: item.label,
       values: [["Value", formatValue(item.value)], ["Share", formatValue(share, shareFormat)]], colors: [fill, fill] });
     angle = next;
   });
+  shapes.push(...hits);
   const selected = config.items[config.selected ?? 0];
   if (config.showCenter !== false && selected) {
     shapes.push(shape("text", { x: cx, y: cy, "text-anchor": "middle", "dominant-baseline": "central", class: "viz-donut-value", fill: "var(--viz-ink)" }, formatValue(stripShare(selected.value, total), shareFormat)));
@@ -520,14 +527,18 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const value = config.series[0]?.values[index];
     const text = mark && value != null && options.formatHeadline
       ? options.formatHeadline(value) : mark?.values[0]?.[1] ?? config.headline ?? "";
-    const current = headline.getAttribute("aria-label") ?? headline.textContent ?? "";
+    animateHeadline(headline, text, settle);
+  }
+
+  function animateHeadline(target: HTMLElement, text: string, settle: boolean) {
+    const current = target.getAttribute("aria-label") ?? target.textContent ?? "";
     if (!settle && current === text) return;
     const from = current === text ? previousHeadline : current;
     previousHeadline = settle ? text : current;
     headlineAnimation++;
-    headline.setAttribute("aria-label", text);
+    target.setAttribute("aria-label", text);
     if (reducedMotion?.matches || from === text) {
-      if (current !== text || headline.childElementCount) headline.textContent = text;
+      if (current !== text || target.childElementCount) target.textContent = text;
       return;
     }
 
@@ -535,14 +546,14 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const digitCount = text.match(/\p{Decimal_Number}/gu)?.length ?? 0;
     let position = previousDigits.length - digitCount;
     let digitIndex = 0;
-    headline.replaceChildren(...Array.from(text, character => {
+    target.replaceChildren(...Array.from(text, character => {
       if (!/\p{Decimal_Number}/u.test(character)) return character;
       const order = digitIndex++;
       if (previousDigits[position++] === character) return character;
       const slot = element("span", "viz-headline-digit");
       const digit = element("span", "viz-headline-reel");
       digit.setAttribute("aria-hidden", "true");
-      digit.style.setProperty("--reel-duration", settle ? "380ms" : "210ms");
+      digit.style.setProperty("--reel-duration", settle ? "520ms" : "120ms");
       digit.style.setProperty("--reel-delay", settle ? `${order * 45}ms` : "0ms");
       const old = element("span"); old.textContent = previousDigits[position - 1] ?? character;
       const next = element("span"); next.textContent = character;
@@ -551,10 +562,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       return slot;
     }));
     const animation = headlineAnimation;
-    window.setTimeout(() => { if (headline && animation === headlineAnimation) headline.textContent = text; }, settle ? 400 + Math.max(0, digitCount - 1) * 45 : 230);
+    window.setTimeout(() => { if (target.isConnected && animation === headlineAnimation) target.textContent = text; }, settle ? 540 + Math.max(0, digitCount - 1) * 45 : 140);
   }
 
-  function display(index: number, settleHeadline = false) {
+  function display(index: number, settleHeadline = false, pointer?: PointerEvent) {
     active = index;
     const mark = layout?.marks[index];
     if (config.type === "column" || config.type === "line-column" || config.type === "range-column") {
@@ -601,13 +612,17 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const plotBounds = scroller.getBoundingClientRect();
     const scaleX = cardBounds.width / card.offsetWidth || 1;
     const scaleY = cardBounds.height / card.offsetHeight || 1;
-    const offset = (plotBounds.left - cardBounds.left) / scaleX + mark.x - scroller.scrollLeft;
+    const svgBounds = svg.getBoundingClientRect();
+    const pointX = pointer ? (pointer.clientX - svgBounds.left) * layout.width / (svgBounds.width || layout.width) : mark.x;
+    const pointY = pointer ? (pointer.clientY - svgBounds.top) * layout.height / (svgBounds.height || layout.height) : mark.y;
+    const offset = (plotBounds.left - cardBounds.left) / scaleX + pointX - scroller.scrollLeft;
     tooltip.style.left = Math.max(12, Math.min(card.clientWidth - tooltip.offsetWidth - 12, offset + 12)) + "px";
-    tooltip.style.top = Math.max(12, (plotBounds.top - cardBounds.top) / scaleY + mark.y - tooltip.offsetHeight - 8) + "px";
+    tooltip.style.top = Math.max(12, (plotBounds.top - cardBounds.top) / scaleY + pointY - tooltip.offsetHeight - 8) + "px";
     if (wasHidden) { void tooltip.offsetWidth; tooltip.classList.remove("viz-tooltip-instant"); }
   }
 
   function draw() {
+    if (options.demoState) return;
     const nextWidth = Math.floor(scroller.clientWidth);
     const minimumWidth = config.type === "strip" ? 1 : 96;
     if (nextWidth < minimumWidth || width === nextWidth) return;
@@ -625,6 +640,14 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       if (text !== undefined) node.textContent = text;
       return node;
     });
+    if (config.type === "donut") {
+      const centerIndex = marks.findIndex(node => node.classList.contains("viz-donut-value"));
+      if (centerIndex >= 0) {
+        const initial = marks[centerIndex].textContent ?? "";
+        const foreign = svgElement("foreignObject", { x: 0, y: layout.height / 2 - 20, width: layout.width, height: 40, "pointer-events": "none" });
+        const center = element("div", "viz-donut-center"); center.textContent = initial; center.setAttribute("aria-label", initial); foreign.append(center); marks[centerIndex] = foreign;
+      }
+    }
     if (layout.clip) {
       const clip = svgElement("clipPath", { id: clipId });
       clip.append(svgElement("rect", layout.clip));
@@ -695,8 +718,12 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     stripSelection = index;
     const items = config.items;
     if (config.type === "donut") {
-      width = -1;
-      draw();
+      const center = svg.querySelector<HTMLElement>(".viz-donut-center");
+      if (center) {
+        const total = stripTotal(items);
+        const value = (options.formatValue ?? format)(stripShare(items[index].value, total), shareFormat);
+        animateHeadline(center, value, true);
+      }
       stripRows.forEach((row, i) => row.setAttribute("aria-pressed", String(i === index)));
       display(index);
       return;
@@ -722,6 +749,36 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       else card.style.removeProperty("--viz-" + token);
     });
     card.dataset.chart = config.type;
+    if (options.demoState) {
+      card.dataset.state = options.demoState;
+      card.dataset.loadingStyle = options.loadingStyle ?? "skeleton";
+      const headingCopy = element("div", "viz-heading-copy");
+      const title = element("h2", options.demoState === "loading" ? "viz-loading-title" : undefined);
+      title.textContent = config.title;
+      headingCopy.append(title);
+      if (options.demoState === "error") {
+        const metric = element("p", "viz-headline viz-error-metric"); metric.textContent = "—";
+        headingCopy.append(metric);
+      }
+      header.replaceChildren(headingCopy);
+      const state = element("div", "viz-state-body");
+      if (options.demoState === "loading") {
+        state.setAttribute("role", "status"); state.setAttribute("aria-label", "Loading chart");
+        const spinner = element("span", "viz-loading-spinner"); spinner.setAttribute("aria-hidden", "true"); state.append(spinner);
+      } else {
+        const message = element("p", "viz-error-message"); message.textContent = "Error loading chart (error code)";
+        const retry = element("button", "viz-retry"); retry.type = "button"; retry.textContent = "Retry";
+        retry.addEventListener("click", event => {
+          event.stopPropagation(); retry.disabled = true; retry.textContent = "Retrying…";
+          window.setTimeout(() => { if (retry.isConnected) { retry.disabled = false; retry.textContent = "Retry"; } }, 700);
+        });
+        state.setAttribute("role", "status"); state.append(message, retry);
+      }
+      chartBody.replaceChildren(state);
+      tooltip.hidden = true;
+      return;
+    }
+    delete card.dataset.state;
     const headingCopy = element("div", "viz-heading-copy");
     const title = element("h2");
     title.textContent = config.title;
@@ -823,12 +880,13 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const index = closest(event);
     if (isLine() && index === active && (!dragging || pinned)) return;
     if (dragging) pinned = true;
-    display(index);
+    if (config.type === "donut" && index >= 0 && index !== stripSelection) selectStrip(index);
+    display(index, false, config.type === "donut" ? event : undefined);
   });
   svg.addEventListener("pointerup", event => {
     if (!event.isPrimary || event.button !== 0) return;
     const index = closest(event);
-    if (config.type === "strip" || config.type === "donut") selectStrip(index);
+    if (config.type === "strip" || config.type === "donut") { selectStrip(index); if (config.type === "donut") display(index, false, event); }
     else if (index >= 0) {
       pinned = true;
       display(index, true);
@@ -890,6 +948,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       }
       config = next;
       render();
+    },
+    setLoadingStyle(style: "skeleton" | "spinner") {
+      options.loadingStyle = style;
+      if (options.demoState === "loading") render();
     },
     getData() {
       const data = layout ?? chartLayout(config, 320, options);

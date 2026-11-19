@@ -44,4 +44,6 @@ export const presets: { config: ChartConfig; layout?: "wide" | "calendar"; previ
   { previousTitle: "Museum ticket types", config: { version: 1, type: "donut", title: "Museum visits by ticket type", height: 232, legendPosition: "below", selected: 0, items: [
     { label: "Adult", value: 5400 }, { label: "Concession", value: 2700 }, { label: "Child", value: 1900 }, { label: "Member", value: 800 },
   ] } },
+  { previousTitle: "Loading state", config: { version: 1, type: "column", title: "Loading state", height: 200, labels: [], series: [{ name: "Values", values: [] }] } },
+  { previousTitle: "Error state", config: { version: 1, type: "column", title: "Error state", headline: "—", height: 200, labels: [], series: [{ name: "Values", values: [] }] } },
 ];
