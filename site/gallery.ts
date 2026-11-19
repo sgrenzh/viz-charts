@@ -451,6 +451,7 @@ function createChartControls(index: number) {
   return { codeButton, range: range.root, homeRange: homeRange.root, detailRange: detailRange.root, refresh };
 }
 
+let transitBarWidth = 4;
 const charts = presets.map(({ layout, formatHeadline }, index) => {
   const card = document.createElement("div");
   card.className = "gallery-tile";
@@ -473,8 +474,23 @@ const charts = presets.map(({ layout, formatHeadline }, index) => {
   actions.append(settingsButton);
   card.append(host, actions);
   gallery.append(card);
-  return { card, host, codeButton, range, homeRange, detailRange, refresh, settingsButton, ...mountChart(host, previewConfig(index), { formatHeadline, controls: homeRange }) };
+  return { card, host, codeButton, range, homeRange, detailRange, refresh, settingsButton, ...mountChart(host, previewConfig(index), { formatHeadline, controls: homeRange, donutRingWidth: () => transitBarWidth }) };
 });
+
+
+const transitIndex = presets.findIndex(preset => preset.config.title === "Transit boardings");
+const donutIndex = presets.findIndex(preset => preset.config.type === "donut");
+function syncDonutToTransit() {
+  const bar = charts[transitIndex]?.host.querySelector<SVGRectElement>('rect[data-bar-index]');
+  const width = Number(bar?.getAttribute("width"));
+  if (!width || Math.abs(width - transitBarWidth) < 0.001) return;
+  transitBarWidth = width;
+  if (donutIndex < 0) return;
+  charts[donutIndex].update(previewConfig(donutIndex));
+  if (previewIndex === donutIndex && detail) detail.update(detailConfig(donutIndex));
+}
+const transitPlot = charts[transitIndex]?.host.querySelector<HTMLElement>(".viz-plot");
+if (transitPlot) new ResizeObserver(() => requestAnimationFrame(syncDonutToTransit)).observe(transitPlot);
 
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 // Leave initially visible cards in place; reveal each other card only on its first entry.
@@ -608,7 +624,7 @@ function syncPreview(index: number) {
   byId("donut-gap-field").hidden = !isDonut;
   selectSegment(donutLegend, isDonut && config.legend !== false);
   selectSegment(donutCenter, isDonut && config.showCenter !== false);
-  donutWidth.value = isDonut ? String(config.ringWidth ?? 0.075) : "0.075";
+  donutWidth.value = isDonut && config.ringWidth !== undefined ? String(config.ringWidth) : "auto";
   donutGap.value = isDonut ? String(config.gap ?? 4) : "4";
   syncSelectDropdown(donutWidth);
   syncSelectDropdown(donutGap);
@@ -632,24 +648,30 @@ function renderColorControls(config: ChartConfig) {
   container.replaceChildren();
   entries.forEach((entry, i) => {
     const row = document.createElement("div"); row.className = "option-row";
-    const name = document.createElement("span"); name.textContent = `${entry.name} color`;
+    const fieldLabel = config.type === "column" && config.stacked ? `${i === 0 ? "First" : i === 1 ? "Second" : `Series ${i + 1}`} series color` : `${entry.name} color`;
+    const name = document.createElement("span"); name.textContent = fieldLabel;
     const choices = [["Auto", ""], ...Object.keys(colorChoices).flatMap(key => [[`${key[0].toUpperCase() + key.slice(1)} primary`, `var(--viz-palette-${key}, ${colorChoices[key][0]})`], [`${key[0].toUpperCase() + key.slice(1)} secondary`, `color-mix(in srgb, var(--viz-palette-${key}, ${colorChoices[key][0]}) var(--viz-page-secondary-strength, 50%), var(--viz-surface))`]])];
-    let selected = choices.findIndex(([, value]) => value === (entry.color ?? ""));
+    const palette = appearances[previewIndex].palette ?? siteAppearance.palette;
+    const schemeColor = config.type === "column" && config.stacked && !entry.color ? choices[1 + chartPalettes.indexOf(palette) * 2 + (i ? 1 : 0)][1] : entry.color ?? "";
+    let selected = choices.findIndex(([, value]) => value === schemeColor);
     if (selected < 0) { choices.push(["Custom", entry.color!]); selected = choices.length - 1; }
     const dropdown = createDropdown(`series-color-${i}-menu`, choice => {
       const current = configs[previewIndex]; const color = choices[choice][1] || undefined;
       if (current.type === "strip" || current.type === "donut") update({ ...current, items: current.items.map((item, n) => n === i ? { ...item, color } : item) });
       else if ("series" in current) update({ ...current, series: current.series.map((item, n) => n === i ? { ...item, color } : item) });
+      syncPreviewAppearance(previewIndex);
       container.querySelectorAll<HTMLButtonElement>(".dropdown-trigger")[i]?.focus({ preventScroll: true });
     });
-    dropdown.refresh(choices.map(([label]) => label), selected, `${entry.name} color`);
+    dropdown.refresh(choices.map(([label]) => label), selected, fieldLabel);
     row.append(name, dropdown.root); container.append(row);
   });
 }
 
 function syncPreviewAppearance(index: number) {
   const appearance = appearances[index];
-  chartPalette.value = appearance.palette ?? siteAppearance.palette;
+  const config = configs[index];
+  const custom = config.type === "column" && config.stacked && config.series.some(series => series.color !== undefined);
+  chartPalette.value = custom ? "custom" : appearance.palette ?? siteAppearance.palette;
   syncSelectDropdown(chartPalette);
   themeOptions.forEach(option => { option.checked = option.value === (appearance.theme ?? "site"); });
   const segment = themeOptions[0]?.closest<HTMLElement>(".segmented");
@@ -712,7 +734,7 @@ function showPreview(index: number) {
   previewActions.replaceChildren(charts[index].codeButton);
   if (opening) preview.showModal();
   previewFields.scrollTop = 0;
-  detail = mountChart(previewHost, previewConfig(index), { formatHeadline: presets[index].formatHeadline, controls: charts[index].detailRange });
+  detail = mountChart(previewHost, previewConfig(index), { formatHeadline: presets[index].formatHeadline, controls: charts[index].detailRange, donutRingWidth: () => transitBarWidth });
   detailPlot = previewHost.querySelector<HTMLElement>(".viz-plot");
   if (detailPlot) detailResize.observe(detailPlot);
   if (homeCard) detailResize.observe(homeCard);
@@ -851,6 +873,7 @@ function drawChart(index: number) {
   chart.settingsButton.title = `Chart settings for ${configs[index].title}`;
   const config = previewConfig(index);
   chart.update(config);
+  if (index === transitIndex) requestAnimationFrame(syncDonutToTransit);
   if (previewIndex === index && detail) {
     detail.update(detailConfig(index));
     syncPreview(index);
@@ -892,8 +915,9 @@ themeQuery.addEventListener("change", applySiteAppearance);
 
 function useSchemeAccent(index: number) {
   const config = configs[index];
-  if (config.theme?.accent === undefined) return;
-  configs[index] = { ...config, theme: { ...config.theme, accent: undefined } };
+  const resetSeries = config.type === "column" && config.stacked && config.series.some(series => series.color !== undefined);
+  if (config.theme?.accent === undefined && !resetSeries) return;
+  configs[index] = { ...config, ...(resetSeries && config.type === "column" ? { series: config.series.map(series => ({ ...series, color: undefined })) } : {}), theme: { ...config.theme, accent: undefined } };
   drawChart(index);
 }
 
@@ -931,10 +955,12 @@ themeOptions.forEach(option => option.addEventListener("change", () => {
 chartPalette.addEventListener("change", () => {
   const index = previewIndex;
   const palette = chartPalettes.find(value => value === chartPalette.value);
-  if (index < 0 || !palette) return;
+  if (index < 0) return;
+  if (!palette) { syncPreviewAppearance(index); return; }
   appearances[index].palette = palette === siteAppearance.palette ? undefined : palette;
-  saveChartAppearance(index);
   useSchemeAccent(index);
+  saveChartAppearance(index);
+  if (previewIndex === index) syncPreview(index);
 });
 for (const dialog of [siteSettings, preview, editor]) {
   const dismiss = () => {
@@ -968,7 +994,7 @@ onSegmentChange(donutCenter, () => {
 });
 donutWidth.addEventListener("change", () => {
   const config = configs[previewIndex];
-  if (config?.type === "donut") update({ ...config, ringWidth: Number(donutWidth.value) });
+  if (config?.type === "donut") update({ ...config, ringWidth: donutWidth.value === "auto" ? undefined : Number(donutWidth.value) });
 });
 donutGap.addEventListener("change", () => {
   const config = configs[previewIndex];

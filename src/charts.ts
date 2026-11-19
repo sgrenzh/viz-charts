@@ -107,6 +107,7 @@ export interface ChartOptions {
   formatValue?: (value: number, axis?: AxisConfig) => string;
   formatHeadline?: (value: number) => string;
   controls?: HTMLElement;
+  donutRingWidth?: () => number;
 }
 
 let nextChartId = 0;
@@ -334,7 +335,7 @@ function heatmap(config: HeatmapConfig, available: number, formatValue: typeof f
     shapes.push(shape("rect", { x, y, width: size, height: size, rx: config.radius ?? 4, fill, ...(value !== undefined ? { "data-heat-index": marks.length } : {}) }));
     const current = date.toLocaleDateString("en", { month: "short", timeZone: "UTC" });
     if (current !== month && (i % 7 === 0 || i === 0)) {
-      shapes.push(label(x, stride * 7 + 24, current));
+      shapes.push(label(x, stride * 7 + 36, current));
       month = current;
     }
     if (value !== undefined) marks.push({
@@ -343,7 +344,7 @@ function heatmap(config: HeatmapConfig, available: number, formatValue: typeof f
     });
   }
   const gridWidth = count ? Math.ceil(count / 7) * stride - gap : 0;
-  return { width: Math.max(available, gridWidth), height: stride * 7 + 36, shapes, marks };
+  return { width: Math.max(available, gridWidth), height: stride * 7 + 48, shapes, marks };
 }
 
 function stripTotal(items: StripConfig["items"]) {
@@ -432,11 +433,11 @@ function donutColor(item: DonutConfig["items"][number], index: number, lead = co
   return item.color ?? (index === 0 ? lead : `color-mix(in srgb, ${lead} ${Math.max(24, 92 - index * 20)}%, var(--viz-surface))`);
 }
 
-function donut(config: DonutConfig, width: number, formatValue: typeof format): Layout {
+function donut(config: DonutConfig, width: number, formatValue: typeof format, defaultRingWidth = 4): Layout {
   const height = config.height ?? 232;
   const diameter = Math.max(0, Math.min(width, height) * 0.86);
   const outer = diameter / 2;
-  const thickness = Math.min(outer, Math.max(1, diameter * (config.ringWidth ?? 0.075)));
+  const thickness = Math.min(outer, Math.max(0.01, config.ringWidth === undefined ? defaultRingWidth : diameter * config.ringWidth));
   const radius = outer - thickness / 2;
   const cx = width / 2, cy = height / 2;
   const total = stripTotal(config.items);
@@ -471,7 +472,7 @@ export function chartLayout(config: ChartConfig, width: number, options: ChartOp
   const formatValue = options.formatValue ?? format;
   if (config.type === "heatmap") return heatmap(config, width, formatValue);
   if (config.type === "strip") return strip(config, width, formatValue);
-  if (config.type === "donut") return donut(config, width, formatValue);
+  if (config.type === "donut") return donut(config, width, formatValue, options.donutRingWidth?.());
   if (config.type === "range-column") return rangeColumn(config, width, formatValue);
   return cartesian(config, width, formatValue);
 }
@@ -484,6 +485,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   let linePointer: number | null = null;
   let headline: HTMLParagraphElement | undefined;
   let previousHeadline = "";
+  let headlineAnimation = 0;
   const reducedMotion = host.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)");
   let stripSelection = initial.type === "strip" || initial.type === "donut" ? initial.selected ?? (initial.type === "donut" ? 0 : -1) : -1;
   let layout: Layout;
@@ -518,12 +520,14 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const value = config.series[0]?.values[index];
     const text = mark && value != null && options.formatHeadline
       ? options.formatHeadline(value) : mark?.values[0]?.[1] ?? config.headline ?? "";
-    const current = headline.textContent ?? "";
+    const current = headline.getAttribute("aria-label") ?? headline.textContent ?? "";
     if (!settle && current === text) return;
     const from = current === text ? previousHeadline : current;
     previousHeadline = settle ? text : current;
+    headlineAnimation++;
+    headline.setAttribute("aria-label", text);
     if (!settle || reducedMotion?.matches || from === text) {
-      if (current !== text) headline.textContent = text;
+      if (current !== text || headline.childElementCount) headline.textContent = text;
       return;
     }
 
@@ -532,11 +536,16 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     headline.replaceChildren(...Array.from(text, character => {
       if (!/\p{Decimal_Number}/u.test(character) || previousDigits[position++] === character) return character;
       const slot = element("span", "viz-headline-digit");
-      const digit = element("span");
-      digit.textContent = character;
+      const digit = element("span", "viz-headline-reel");
+      digit.setAttribute("aria-hidden", "true");
+      const old = element("span"); old.textContent = previousDigits[position - 1] ?? character;
+      const next = element("span"); next.textContent = character;
+      digit.append(old, next);
       slot.append(digit);
       return slot;
     }));
+    const animation = headlineAnimation;
+    window.setTimeout(() => { if (headline && animation === headlineAnimation) headline.textContent = text; }, 320);
   }
 
   function display(index: number, settleHeadline = false) {
@@ -550,7 +559,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
         const cappedBody = barConfig.type === "column" && barConfig.barStyle === "cap" && !bar.hasAttribute("data-bar-cap");
         bar.style.opacity = mark && !selected
           ? cappedBody ? "calc(var(--viz-page-cap-opacity, 0.12) * 0.22)" : "0.22"
-          : "";
+          : mark && selected && cappedBody ? "1" : "";
       });
     }
     if (config.type === "heatmap") svg.querySelectorAll<SVGElement>("[data-heat-index]").forEach(cell => {
@@ -565,8 +574,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     lineMarkers.replaceChildren(...guide, ...points.map(point => svgElement("circle", {
       cx: mark.x, cy: point.y, r: 5, fill: point.color, stroke: "var(--viz-surface)", "stroke-width": 1,
     })));
+    const wasHidden = tooltip.hidden;
     tooltip.hidden = !mark;
     if (!mark) return;
+    if (wasHidden) tooltip.classList.add("viz-tooltip-instant");
     const title = element("strong");
     title.textContent = mark.label;
     const rows = mark.values.map(([name, value], i) => {
@@ -587,6 +598,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const offset = (plotBounds.left - cardBounds.left) / scaleX + mark.x - scroller.scrollLeft;
     tooltip.style.left = Math.max(12, Math.min(card.clientWidth - tooltip.offsetWidth - 12, offset + 12)) + "px";
     tooltip.style.top = Math.max(12, (plotBounds.top - cardBounds.top) / scaleY + mark.y - tooltip.offsetHeight - 8) + "px";
+    if (wasHidden) { void tooltip.offsetWidth; tooltip.classList.remove("viz-tooltip-instant"); }
   }
 
   function draw() {

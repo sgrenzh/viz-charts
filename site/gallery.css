@@ -372,7 +372,7 @@ dialog::backdrop { background: #0009; }
   text-align: left;
 }
 .dropdown-menu button:is(:hover, :focus-visible) { background: var(--dropdown-selection); outline-offset: -3px; }
-.dropdown-menu button[aria-checked="true"] { background: var(--dropdown-selection); }
+.dropdown-menu button[aria-checked="true"]:focus-visible:not(:hover) { background: transparent; }
 .dropdown-menu svg { width: 18px; height: 18px; flex: none; }
 
 .dialog-heading { position: sticky; top: 0; z-index: 1; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--panel); }
