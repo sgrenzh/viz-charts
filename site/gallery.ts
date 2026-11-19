@@ -27,6 +27,10 @@ const legendPosition = byId<HTMLSelectElement>("legend-position");
 const showVolume = byId<HTMLInputElement>("show-volume");
 const showTracks = byId<HTMLInputElement>("show-tracks");
 const performance = byId<HTMLInputElement>("performance");
+const donutLegend = byId<HTMLInputElement>("donut-legend");
+const donutCenter = byId<HTMLInputElement>("donut-center");
+const donutWidth = byId<HTMLSelectElement>("donut-width");
+const donutGap = byId<HTMLSelectElement>("donut-gap");
 const source = byId<HTMLTextAreaElement>("config");
 const status = byId("status");
 const familyLabels = {
@@ -35,6 +39,7 @@ const familyLabels = {
   line: "Line",
   heatmap: "Heatmap",
   strip: "Proportional strip",
+  donut: "Donut",
 };
 function chartFamily(config: ChartConfig) {
   return config.type === "column" && config.stacked ? "stacked" : config.type;
@@ -47,6 +52,7 @@ const chartTypeLabels: Record<ReturnType<typeof chartFamily>, string> = {
   "line-column": "Line and column chart",
   heatmap: familyLabels.heatmap,
   strip: familyLabels.strip,
+  donut: "Donut chart",
 };
 const chartThemes = ["system", "light", "dark"] as const;
 const chartPalettes = ["orange", "blue", "purple", "green", "monochrome"] as const;
@@ -114,7 +120,7 @@ const samplesPerDay = [1, 4, 1, 3, 1, 8, 1, 24, 6, 24];
 const stripViews: View[] = [{ label: "By item count" }, { label: "By category" }];
 const configs = presets.map(({ config }) => structuredClone(config));
 const transitPresetIndex = presets.findIndex(preset => preset.previousTitle === "Transaction count");
-const selectedViews = presets.map(({ config }, index) => config.type === "strip" || config.type === "range-column" || index === transitPresetIndex ? 0 : viewsByPreset[index].length - 1);
+const selectedViews = presets.map(({ config }, index) => config.type === "strip" || config.type === "donut" || config.type === "range-column" || index === transitPresetIndex ? 0 : viewsByPreset[index].length - 1);
 let closeCurrentMenu: (() => void) | undefined;
 let currentMenuRoot: HTMLElement | undefined;
 document.addEventListener("pointerdown", event => {
@@ -257,7 +263,7 @@ function syncSelectDropdown(select: HTMLSelectElement) {
   const label = document.getElementById(select.getAttribute("aria-labelledby") ?? "")?.textContent ?? "";
   selectDropdowns.get(select)?.refresh(Array.from(select.options, option => option.textContent), select.selectedIndex, label);
 }
-for (const select of [sitePalette, chartPalette, legendPosition]) {
+for (const select of [sitePalette, chartPalette, legendPosition, donutWidth, donutGap]) {
   const dropdown = createDropdown(`${select.id}-menu`, index => {
     select.selectedIndex = index;
     select.dispatchEvent(new Event("change", { bubbles: true }));
@@ -302,6 +308,7 @@ document.querySelectorAll<HTMLElement>(".segmented").forEach(segment => {
 function viewsFor(index: number) {
   const config = configs[index];
   if (config.type === "strip") return stripViews;
+  if (config.type === "donut") return [];
   if (config.type === "heatmap") return calendarRanges;
   return viewsByPreset[index].length ? viewsByPreset[index] : monthlyRanges;
 }
@@ -428,7 +435,7 @@ function createChartControls(index: number) {
     range.refresh(labels, selectedViews[index], config.type === "strip" ? "Sort by" : "Date range");
     homeRange.refresh(labels, selectedViews[index], "Date range");
     detailRange.refresh(labels, selectedViews[index], "Date range");
-    homeRange.root.hidden = detailRange.root.hidden = config.type === "strip";
+    homeRange.root.hidden = detailRange.root.hidden = config.type === "strip" || config.type === "donut";
     codeButton.setAttribute("aria-label", `Code for ${config.title}`);
   }
   codeButton.addEventListener("click", () => {
@@ -586,8 +593,19 @@ function syncPreview(index: number) {
   const hasLine = config.type === "line" || config.type === "line-column";
   byId("gradient-fill-field").hidden = !hasLine;
   selectSegment(gradientFill, hasLine && config.gradientFill === true);
-  byId("legend-position-field").hidden = config.type !== "strip";
-  legendPosition.value = config.type === "strip" ? config.legendPosition ?? "right" : "right";
+  const isDonut = config.type === "donut";
+  byId("donut-legend-field").hidden = !isDonut;
+  byId("donut-center-field").hidden = !isDonut;
+  byId("donut-width-field").hidden = !isDonut;
+  byId("donut-gap-field").hidden = !isDonut;
+  selectSegment(donutLegend, isDonut && config.legend !== false);
+  selectSegment(donutCenter, isDonut && config.showCenter !== false);
+  donutWidth.value = isDonut ? (config.ringWidth ?? 0.1).toFixed(2) : "0.10";
+  donutGap.value = isDonut ? String(config.gap ?? 4) : "4";
+  syncSelectDropdown(donutWidth);
+  syncSelectDropdown(donutGap);
+  byId("legend-position-field").hidden = config.type !== "strip" && (!isDonut || config.legend === false);
+  legendPosition.value = config.type === "strip" || isDonut ? config.legendPosition ?? "right" : "right";
   syncSelectDropdown(legendPosition);
   byId("show-volume-field").hidden = config.type !== "line-column";
   selectSegment(showVolume, config.type === "line-column" && config.showVolume !== false);
@@ -599,7 +617,7 @@ function syncPreview(index: number) {
 
 function renderColorControls(config: ChartConfig) {
   const container = byId("series-colors");
-  const entries = config.type === "strip" && config.legend !== false ? config.items.map(item => ({ name: item.label, color: item.color }))
+  const entries = (config.type === "strip" || config.type === "donut") ? config.items.map(item => ({ name: item.label, color: item.color }))
     : "series" in config && config.type !== "line-column" && config.series.length > 1 ? config.series.map(item => ({ name: item.name, color: item.color })) : [];
   container.hidden = !entries.length;
   if (currentMenuRoot && container.contains(currentMenuRoot)) closeCurrentMenu?.();
@@ -612,7 +630,7 @@ function renderColorControls(config: ChartConfig) {
     if (selected < 0) { choices.push(["Custom", entry.color!]); selected = choices.length - 1; }
     const dropdown = createDropdown(`series-color-${i}-menu`, choice => {
       const current = configs[previewIndex]; const color = choices[choice][1] || undefined;
-      if (current.type === "strip") update({ ...current, items: current.items.map((item, n) => n === i ? { ...item, color } : item) });
+      if (current.type === "strip" || current.type === "donut") update({ ...current, items: current.items.map((item, n) => n === i ? { ...item, color } : item) });
       else if ("series" in current) update({ ...current, series: current.series.map((item, n) => n === i ? { ...item, color } : item) });
       container.querySelectorAll<HTMLButtonElement>(".dropdown-trigger")[i]?.focus({ preventScroll: true });
     });
@@ -930,7 +948,23 @@ onSegmentChange(gradientFill, () => {
 });
 legendPosition.addEventListener("change", () => {
   const config = configs[previewIndex];
-  if (config?.type === "strip") update({ ...config, legendPosition: legendPosition.value as LegendPosition });
+  if (config?.type === "strip" || config?.type === "donut") update({ ...config, legendPosition: legendPosition.value as LegendPosition });
+});
+onSegmentChange(donutLegend, () => {
+  const config = configs[previewIndex];
+  if (config?.type === "donut") update({ ...config, legend: donutLegend.checked });
+});
+onSegmentChange(donutCenter, () => {
+  const config = configs[previewIndex];
+  if (config?.type === "donut") update({ ...config, showCenter: donutCenter.checked });
+});
+donutWidth.addEventListener("change", () => {
+  const config = configs[previewIndex];
+  if (config?.type === "donut") update({ ...config, ringWidth: Number(donutWidth.value) });
+});
+donutGap.addEventListener("change", () => {
+  const config = configs[previewIndex];
+  if (config?.type === "donut") update({ ...config, gap: Number(donutGap.value) });
 });
 onSegmentChange(showVolume, () => {
   const config = configs[previewIndex];
@@ -989,9 +1023,11 @@ function readConfig(text: string): ChartConfig {
       || (parsed.weekStartsOn !== undefined && parsed.weekStartsOn !== 0 && parsed.weekStartsOn !== 1)
       || (parsed.colors !== undefined && (!Array.isArray(parsed.colors) || !parsed.colors.length || !parsed.colors.every(c => typeof c === "string")))
       || (parsed.thresholds !== undefined && (!Array.isArray(parsed.thresholds) || !parsed.thresholds.every(finite)))) throw new Error("Check the heatmap appearance settings.");
-  } else if (parsed.type === "strip") {
+  } else if (parsed.type === "strip" || parsed.type === "donut") {
     if (!Array.isArray(parsed.items) || !parsed.items.every(item => isRecord(item) && typeof item.label === "string"
-      && finite(item.value) && item.value >= 0 && optionalText(item.color))) throw new Error("Strip segments need labels and nonnegative values.");
+      && finite(item.value) && item.value >= 0 && optionalText(item.color))) throw new Error("Segments need labels and nonnegative values.");
+    if ((parsed.legend !== undefined && typeof parsed.legend !== "boolean") || (parsed.selected !== undefined && (!Number.isInteger(parsed.selected) || !finite(parsed.selected) || parsed.selected < 0 || parsed.selected >= parsed.items.length))) throw new Error("Check the key and selected segment.");
+    if (parsed.type === "donut" && (!within(parsed.ringWidth, 0.04, 0.2) || !within(parsed.gap, 0, 16) || (parsed.showCenter !== undefined && typeof parsed.showCenter !== "boolean"))) throw new Error("Check the donut appearance settings.");
     if (parsed.legendPosition !== undefined && parsed.legendPosition !== "below" && parsed.legendPosition !== "right" && parsed.legendPosition !== "left") {
       throw new Error("Choose below, right, or left for the list position.");
     }

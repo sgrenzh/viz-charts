@@ -1,7 +1,7 @@
 import { scaleBand, scaleLinear } from "d3-scale";
-import { area, line } from "d3-shape";
+import { arc, area, line } from "d3-shape";
 
-export type ChartConfig = CartesianConfig | RangeColumnConfig | HeatmapConfig | StripConfig;
+export type ChartConfig = CartesianConfig | RangeColumnConfig | HeatmapConfig | StripConfig | DonutConfig;
 export type LegendPosition = "below" | "right" | "left";
 export interface ChartTheme {
   accent?: string;
@@ -80,6 +80,17 @@ interface StripConfig extends BaseConfig {
   legendPosition?: LegendPosition;
 }
 
+export interface DonutConfig extends BaseConfig {
+  type: "donut";
+  items: { label: string; value: number; color?: string }[];
+  selected?: number;
+  legend?: boolean;
+  legendPosition?: LegendPosition;
+  showCenter?: boolean;
+  ringWidth?: number;
+  gap?: number;
+}
+
 type Attrs = Record<string, string | number>;
 type Shape = { tag: "line" | "rect" | "path" | "circle" | "text"; attrs: Attrs; text?: string };
 interface Mark {
@@ -105,6 +116,7 @@ const muted = "var(--viz-muted)";
 const rules = "var(--viz-grid)";
 const axisLabelSize = 12;
 const dayMs = 86_400_000;
+const subtleRadius = (width: number, requested: number) => Math.min(requested, Math.max(0, width) * 0.16);
 const tint = (strength: string, base = color) => `color-mix(in srgb, ${base} ${strength}, var(--viz-surface))`;
 const secondaryColor = tint("var(--viz-page-secondary-strength, 50%)");
 const heatColors = [16, 33, 50, 66, 83, 100].map(strength =>
@@ -243,10 +255,10 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
         const barHeight = Math.abs(y(base) - endY);
         const x = center(i) - w * groups / 2 + (stack ? 0 : s * w);
         const fill = getColor(series, s);
-        shapes.push(shape("rect", { x, y: barY, width: w, height: barHeight, rx: stack ? 0 : config.barRadius ?? 0, fill, "data-bar-index": i, ...(stack ? { "data-stack-index": i } : {}), opacity: config.barStyle === "cap" ? "var(--viz-page-cap-opacity, 0.12)" : 1 }));
+        shapes.push(shape("rect", { x, y: barY, width: w, height: barHeight, rx: stack ? 0 : subtleRadius(w, config.barRadius ?? 2), fill, "data-bar-index": i, ...(stack ? { "data-stack-index": i } : {}), opacity: config.barStyle === "cap" ? "var(--viz-page-cap-opacity, 0.12)" : 1 }));
         if (config.barStyle === "cap" && barHeight) {
           const cap = Math.min(2, barHeight);
-          const r = Math.min(cap, w / 2);
+          const r = Math.min(cap, subtleRadius(w, cap));
           const edge = v >= 0 ? barY : barY + barHeight;
           const inside = edge + (v >= 0 ? cap : -cap);
           const d = `M${x},${inside} Q${x},${edge} ${x + r},${edge} H${x + w - r} Q${x + w},${edge} ${x + w},${inside} Z`;
@@ -262,7 +274,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
       volume.values.slice(0, indexes.length).forEach((v, i) => {
         if (v == null) return;
         const w = Math.max(1, band.bandwidth() * 0.7);
-        shapes.push(shape("rect", { x: center(i) - w / 2, y: volumeY(v), width: w, height: bottom - volumeY(v), fill: getColor(volume, 1), "data-bar-index": i }));
+        shapes.push(shape("rect", { x: center(i) - w / 2, y: volumeY(v), width: w, height: bottom - volumeY(v), rx: subtleRadius(w, 2), fill: getColor(volume, 1), "data-bar-index": i }));
       });
     }
     main.forEach((series, i) => {
@@ -406,10 +418,52 @@ function rangeColumn(config: RangeColumnConfig, width: number, formatValue: type
   const marks = config.labels.map((name, i): Mark => {
     const range = config.ranges[i];
     const x = center(i);
-    if (config.showTracks !== false) shapes.push(shape("rect", { x: x - 1, y: top, width: 2, height: bottom - top, fill: rules }));
-    if (range) shapes.push(shape("rect", { x: x - 1.5, y: y(range.high), width: 3, height: Math.max(1, y(range.low) - y(range.high)), fill: color, "data-bar-index": i }));
+    if (config.showTracks !== false) shapes.push(shape("rect", { x: x - 1, y: top, width: 2, height: bottom - top, rx: subtleRadius(2, 2), fill: rules }));
+    if (range) {
+      const lineWidth = Math.min(3, band.bandwidth() * 0.7);
+      shapes.push(shape("rect", { x: x - lineWidth / 2, y: y(range.high), width: lineWidth, height: Math.max(1, y(range.low) - y(range.high)), rx: subtleRadius(lineWidth, 2), fill: color, "data-bar-index": i }));
+    }
     return { label: name, x, y: range ? y(range.high) : top, values: range ? [["Low", formatValue(range.low, config.yAxis)], ["High", formatValue(range.high, config.yAxis)]] : [], colors: [color, color], points: range ? undefined : [] };
   });
+  return { width, height, shapes, marks };
+}
+
+function donutColor(item: DonutConfig["items"][number], index: number) {
+  return item.color ?? (index === 0 ? color : `color-mix(in srgb, var(--viz-muted) ${Math.min(62, 18 + index * 12)}%, var(--viz-surface))`);
+}
+
+function donut(config: DonutConfig, width: number, formatValue: typeof format): Layout {
+  const height = config.height ?? 232;
+  const diameter = Math.max(0, Math.min(width, height));
+  const outer = diameter / 2;
+  const thickness = Math.min(outer, Math.max(1, diameter * (config.ringWidth ?? 0.10)));
+  const radius = outer - thickness / 2;
+  const cx = width / 2, cy = height / 2;
+  const total = stripTotal(config.items);
+  const visibleCount = config.items.filter(item => item.value > 0).length;
+  const gapAngle = visibleCount > 1 && radius ? Math.min((config.gap ?? 4) / radius, Math.PI / visibleCount) : 0;
+  const shapeArc = arc().innerRadius(Math.max(0, outer - thickness)).outerRadius(outer)
+    .cornerRadius(subtleRadius(thickness, 4)).padRadius(radius);
+  const shapes: Shape[] = [];
+  const marks: Mark[] = [];
+  let angle = 0;
+  config.items.forEach((item, i) => {
+    const share = stripShare(item.value, total);
+    const next = angle + share * Math.PI * 2;
+    const fill = donutColor(item, i);
+    const middle = (angle + next) / 2;
+    if (share > 0) {
+      const d = shapeArc({ innerRadius: Math.max(0, outer - thickness), outerRadius: outer, startAngle: angle, endAngle: next, padAngle: Math.min(gapAngle, (next - angle) * 0.8) });
+      if (d) shapes.push(shape("path", { d, transform: `translate(${cx} ${cy})`, fill, "data-donut-index": i, class: "viz-donut-segment" }));
+    }
+    marks.push({ x: cx + radius * Math.sin(middle), y: cy - radius * Math.cos(middle), label: item.label,
+      values: [["Value", formatValue(item.value)], ["Share", formatValue(share, shareFormat)]], colors: [fill, fill] });
+    angle = next;
+  });
+  const selected = config.items[config.selected ?? 0];
+  if (config.showCenter !== false && selected) {
+    shapes.push(shape("text", { x: cx, y: cy, "text-anchor": "middle", "dominant-baseline": "central", class: "viz-donut-value", fill: "var(--viz-ink)" }, formatValue(stripShare(selected.value, total), shareFormat)));
+  }
   return { width, height, shapes, marks };
 }
 
@@ -417,6 +471,7 @@ export function chartLayout(config: ChartConfig, width: number, options: ChartOp
   const formatValue = options.formatValue ?? format;
   if (config.type === "heatmap") return heatmap(config, width, formatValue);
   if (config.type === "strip") return strip(config, width, formatValue);
+  if (config.type === "donut") return donut(config, width, formatValue);
   if (config.type === "range-column") return rangeColumn(config, width, formatValue);
   return cartesian(config, width, formatValue);
 }
@@ -430,7 +485,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   let headline: HTMLParagraphElement | undefined;
   let previousHeadline = "";
   const reducedMotion = host.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)");
-  let stripSelection = initial.type === "strip" ? initial.selected ?? -1 : -1;
+  let stripSelection = initial.type === "strip" || initial.type === "donut" ? initial.selected ?? (initial.type === "donut" ? 0 : -1) : -1;
   let layout: Layout;
   let stripRows: HTMLButtonElement[] = [];
   const card = element("section", "viz-card");
@@ -541,7 +596,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     width = nextWidth;
     const keepLineSelection = pinned && isLine();
     pinned = keepLineSelection;
-    const nextConfig = config.type === "strip" ? { ...config, selected: stripSelection } : config;
+    const nextConfig = config.type === "strip" || config.type === "donut" ? { ...config, selected: stripSelection } : config;
     layout = chartLayout(nextConfig, width, options);
     svg.setAttribute("viewBox", "0 0 " + layout.width + " " + layout.height);
     svg.setAttribute("width", String(layout.width));
@@ -561,7 +616,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     } else {
       svg.replaceChildren(...marks);
       const defs = svgElement("defs", {});
-      if (config.type === "column" && config.stacked && (config.barRadius ?? 0) > 0) {
+      if (config.type === "column" && config.stacked && (config.barRadius ?? 2) > 0) {
         for (let i = 0; i < config.labels.length; i++) {
           const segments = marks.filter(node => node.getAttribute("data-stack-index") === String(i));
           const bars = segments.filter(node => node.localName === "rect" && Number(node.getAttribute("height")) > 0);
@@ -570,7 +625,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
           const bottom = Math.max(...bars.map(bar => Number(bar.getAttribute("y")) + Number(bar.getAttribute("height"))));
           const id = `viz-stack-clip-${chartId}-${i}`;
           const clip = svgElement("clipPath", { id, clipPathUnits: "userSpaceOnUse" });
-          clip.append(svgElement("rect", { x: bars[0].getAttribute("x")!, y: top, width: bars[0].getAttribute("width")!, height: bottom - top, rx: config.barRadius ?? 0 }));
+          clip.append(svgElement("rect", { x: bars[0].getAttribute("x")!, y: top, width: bars[0].getAttribute("width")!, height: bottom - top, rx: subtleRadius(Number(bars[0].getAttribute("width")), config.barRadius ?? 2) }));
           defs.append(clip);
           segments.forEach(segment => segment.setAttribute("clip-path", `url(#${id})`));
         }
@@ -618,9 +673,16 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   }
 
   function selectStrip(index: number) {
-    if (config.type !== "strip" || !config.items[index] || !layout?.marks[index]) return;
+    if ((config.type !== "strip" && config.type !== "donut") || !config.items[index] || !layout?.marks[index]) return;
     stripSelection = index;
     const items = config.items;
+    if (config.type === "donut") {
+      width = -1;
+      draw();
+      stripRows.forEach((row, i) => row.setAttribute("aria-pressed", String(i === index)));
+      display(index);
+      return;
+    }
     svg.querySelectorAll("[data-strip-index]").forEach(segment => {
       const i = Number(segment.getAttribute("data-strip-index"));
       segment.setAttribute("fill", stripFill(items[i], i, index));
@@ -673,7 +735,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     chartBody.querySelector(".viz-legend")?.remove();
     delete chartBody.dataset.legendPosition;
     stripRows = [];
-    if (config.type === "strip" && config.legend !== false) {
+    if ((config.type === "strip" || config.type === "donut") && config.legend !== false) {
       chartBody.dataset.legendPosition = config.legendPosition ?? "right";
       const legend = element("div", "viz-legend");
       const total = stripTotal(config.items);
@@ -685,8 +747,8 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
         const share = element("span");
         button.type = "button";
         button.setAttribute("aria-pressed", String(i === stripSelection));
-        button.style.setProperty("--strip-color", item.color ?? color);
-        button.style.setProperty("--strip-dot", stripFill(item, i, stripSelection));
+        button.style.setProperty("--strip-color", config.type === "donut" ? donutColor(item, i) : item.color ?? color);
+        button.style.setProperty("--strip-dot", config.type === "donut" ? donutColor(item, i) : stripFill(item, i, stripSelection));
         name.textContent = item.label;
         value.textContent = formatValue(item.value);
         share.textContent = formatValue(stripShare(item.value, total), shareFormat);
@@ -713,9 +775,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   }
   function closest(event: PointerEvent) {
     if (!layout) return -1;
-    if (config.type === "strip") {
-      const segment = (event.target as Element).closest("[data-strip-index]");
-      return segment ? Number(segment.getAttribute("data-strip-index")) : -1;
+    if (config.type === "strip" || config.type === "donut") {
+      const attr = config.type === "donut" ? "data-donut-index" : "data-strip-index";
+      const segment = (event.target as Element).closest(`[${attr}]`);
+      return segment ? Number(segment.getAttribute(attr)) : -1;
     }
     const bounds = svg.getBoundingClientRect();
     const x = (event.clientX - bounds.left) * layout.width / (bounds.width || layout.width);
@@ -747,7 +810,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   svg.addEventListener("pointerup", event => {
     if (!event.isPrimary || event.button !== 0) return;
     const index = closest(event);
-    if (config.type === "strip") selectStrip(index);
+    if (config.type === "strip" || config.type === "donut") selectStrip(index);
     else if (index >= 0) {
       pinned = true;
       display(index, true);
@@ -769,7 +832,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       return;
     }
     if (!layout?.marks.length) return;
-    if (config.type === "strip" && active >= 0 && [" ", "Enter"].includes(event.key)) {
+    if ((config.type === "strip" || config.type === "donut") && active >= 0 && [" ", "Enter"].includes(event.key)) {
       event.preventDefault();
       selectStrip(active);
       return;
@@ -792,8 +855,8 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   observer.observe(scroller);
   return {
     update(next: ChartConfig) {
-      if (next.type === "strip") {
-        const previous = config.type === "strip" ? config : undefined;
+      if (next.type === "strip" || next.type === "donut") {
+        const previous = config.type === next.type ? config : undefined;
         const defaultItem = next.items[next.selected ?? -1];
         const selectedItem = previous?.items[stripSelection];
         const previousDefault = previous?.items[previous.selected ?? -1];
