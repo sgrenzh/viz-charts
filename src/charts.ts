@@ -380,11 +380,12 @@ function strip(config: StripConfig, width: number, formatValue: typeof format): 
     const targetCount = Math.max(1, Math.min(config.segmentCount ?? 80, Math.floor(width / 3)));
     const originalStep = width / targetCount;
     const originalGap = Math.min(2, originalStep * 0.25);
-    const barWidth = Math.min(width, originalStep - originalGap + 4);
-    const gap = originalGap + 8;
-    const count = Math.max(1, Math.min(targetCount, Math.floor((width + gap) / (barWidth + gap))));
+    let barWidth = Math.min(width, originalStep - originalGap + 2);
+    const desiredGap = originalGap + 4;
+    const count = Math.max(1, Math.min(targetCount, Math.floor((width + desiredGap) / (barWidth + desiredGap))));
+    if (count === 1) barWidth = width;
+    const gap = count > 1 ? (width - count * barWidth) / (count - 1) : 0;
     const step = barWidth + gap;
-    const offset = (width - (count * barWidth + (count - 1) * gap)) / 2;
     const selected = config.selected ?? -1;
     const boundaries: number[] = [];
     config.items.reduce((sum, item) => { boundaries.push(sum + Math.max(0, item.value)); return boundaries[boundaries.length - 1]; }, 0);
@@ -392,14 +393,14 @@ function strip(config: StripConfig, width: number, formatValue: typeof format): 
     for (let n = 0; n < count; n++) {
       const at = (n + 0.5) / count * capacity;
       const index = boundaries.findIndex(end => at < end);
-      shapes.push(shape("rect", { x: offset + n * step, y: 0, width: barWidth, height, rx: subtleRadius(barWidth, 2),
+      shapes.push(shape("rect", { x: n * step, y: 0, width: barWidth, height, rx: Math.min(2, barWidth / 2, height / 2),
         fill: index < 0 ? "var(--viz-grid)" : segmentFill(config.items[index], index, selected),
         ...(index >= 0 ? { class: "viz-strip-segment", "data-strip-index": index } : {}) }));
     }
     let start = 0;
     const marks = config.items.map((item, i) => {
       const end = boundaries[i];
-      const mark = { label: item.label, x: offset + barWidth / 2 + (start + end) / 2 / capacity * Math.max(0, (count - 1) * step), y: height / 2,
+      const mark = { label: item.label, x: barWidth / 2 + (start + end) / 2 / capacity * Math.max(0, (count - 1) * step), y: height / 2,
         values: [[item.label, formatValue(item.value)], ["Share", formatValue(stripShare(item.value, capacity), shareFormat)]] as [string, string][],
         colors: [segmentFill(item, i, selected), segmentFill(item, i, selected)] };
       start = end;
@@ -877,7 +878,11 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const current = stripTotal(config.items);
       const capacity = Math.max(config.capacity ?? current, current);
       const compact: AxisConfig = { format: "compact" };
-      summary.textContent = `${(options.formatValue ?? format)(current, compact)} / ${(options.formatValue ?? format)(capacity, compact)}`;
+      const currentValue = element("span", "viz-capacity-current");
+      const capacityValue = element("span", "viz-capacity-total");
+      currentValue.textContent = (options.formatValue ?? format)(current, compact);
+      capacityValue.textContent = ` of ${(options.formatValue ?? format)(capacity, compact)}`;
+      summary.append(currentValue, capacityValue);
       header.append(summary);
     } else if (options.controls) {
       header.append(options.controls);
