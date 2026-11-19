@@ -490,6 +490,8 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   let active = -1;
   let pinned = false;
   let linePointer: number | null = null;
+  let retryTimer: number | undefined;
+  let retrying = false;
   let headline: HTMLParagraphElement | undefined;
   let previousHeadline = "";
   let headlineAnimation = 0;
@@ -502,6 +504,9 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   const chartBody = element("div", "viz-body");
   const scroller = element("div", "viz-plot");
   const tooltip = element("div", "viz-tooltip");
+  const stateAnnouncement = element("span", "viz-sr-only");
+  stateAnnouncement.setAttribute("role", "status");
+  stateAnnouncement.setAttribute("aria-atomic", "true");
   const chartId = ++nextChartId;
   const clipId = "viz-strip-clip-" + chartId;
   const gradientId = "viz-line-gradient-" + chartId;
@@ -514,7 +519,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   scroller.setAttribute("role", "group");
   scroller.setAttribute("aria-label", "Plot. Use arrow keys to explore the values.");
   scroller.append(svg);
-  card.append(header, chartBody, tooltip);
+  card.append(header, chartBody, tooltip, stateAnnouncement);
   chartBody.append(scroller);
   host.replaceChildren(card);
 
@@ -750,29 +755,33 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     });
     card.dataset.chart = config.type;
     if (options.demoState) {
-      card.dataset.state = options.demoState;
-      card.dataset.loadingStyle = options.loadingStyle ?? "skeleton";
+      const visualState = retrying ? "loading" : options.demoState;
+      card.dataset.state = visualState;
+      stateAnnouncement.textContent = visualState === "loading" ? "Loading chart" : "Couldn’t load chart";
+      card.dataset.loadingStyle = retrying ? "skeleton" : options.loadingStyle ?? "skeleton";
       const headingCopy = element("div", "viz-heading-copy");
-      const title = element("h2", options.demoState === "loading" ? "viz-loading-title" : undefined);
-      title.textContent = config.title;
+      const title = element("h2", visualState === "loading" ? "viz-loading-title" : undefined);
+      title.textContent = "Title";
       headingCopy.append(title);
-      if (options.demoState === "error") {
-        const metric = element("p", "viz-headline viz-error-metric"); metric.textContent = "—";
+      if (visualState === "error") {
+        const metric = element("p", "viz-headline viz-error-metric"); metric.textContent = "-";
         headingCopy.append(metric);
       }
       header.replaceChildren(headingCopy);
       const state = element("div", "viz-state-body");
-      if (options.demoState === "loading") {
-        state.setAttribute("role", "status"); state.setAttribute("aria-label", "Loading chart");
+      if (visualState === "loading") {
+        state.setAttribute("aria-hidden", "true");
         const spinner = element("span", "viz-loading-spinner"); spinner.setAttribute("aria-hidden", "true"); state.append(spinner);
       } else {
-        const message = element("p", "viz-error-message"); message.textContent = "Error loading chart (error code)";
+        const message = element("p", "viz-error-message"); message.textContent = "Couldn’t load chart";
         const retry = element("button", "viz-retry"); retry.type = "button"; retry.textContent = "Retry";
         retry.addEventListener("click", event => {
-          event.stopPropagation(); retry.disabled = true; retry.textContent = "Retrying…";
-          window.setTimeout(() => { if (retry.isConnected) { retry.disabled = false; retry.textContent = "Retry"; } }, 700);
+          event.stopPropagation();
+          retrying = true;
+          render();
+          retryTimer = window.setTimeout(() => { retrying = false; retryTimer = undefined; if (card.isConnected) render(); }, 1200);
         });
-        state.setAttribute("role", "status"); state.append(message, retry);
+        state.append(message, retry);
       }
       chartBody.replaceChildren(state);
       tooltip.hidden = true;
@@ -957,6 +966,6 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const data = layout ?? chartLayout(config, 320, options);
       return data.marks.flatMap(mark => mark.values.map(([series, value]) => ({ label: mark.label, series, value })));
     },
-    destroy() { observer.disconnect(); card.remove(); },
+    destroy() { observer.disconnect(); if (retryTimer !== undefined) window.clearTimeout(retryTimer); card.remove(); },
   };
 }
