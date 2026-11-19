@@ -39,8 +39,7 @@ const familyLabels = {
   stacked: "Stacked column",
   line: "Line",
   heatmap: "Heatmap",
-  strip: "Stacked bar",
-  progress: "Progress bar",
+  bar: "Bar",
   donut: "Donut",
   states: "Chart states",
 };
@@ -56,8 +55,8 @@ const chartTypeLabels: Record<ReturnType<typeof chartFamily>, string> = {
   line: "Line chart",
   "line-column": "Line and column chart",
   heatmap: familyLabels.heatmap,
-  strip: familyLabels.strip,
-  progress: familyLabels.progress,
+  strip: "Stacked bar",
+  progress: "Progress bar",
   donut: "Donut chart",
   states: "Chart state",
 };
@@ -548,7 +547,7 @@ if ("IntersectionObserver" in window) {
 let activeFamily = "all";
 function matchesFilter(config: ChartConfig) {
   const family = chartFamily(config);
-  return activeFamily === "all" || (family === "line-column" ? "line" : family === "range-column" ? "column" : family) === activeFamily;
+  return activeFamily === "all" || (family === "line-column" ? "line" : family === "range-column" ? "column" : family === "strip" || family === "progress" ? "bar" : family) === activeFamily;
 }
 const filters = Object.entries({ all: "All", ...familyLabels }).map(([family, label]) => {
   const pill = document.createElement("button");
@@ -630,7 +629,7 @@ function onSegmentChange(on: HTMLInputElement, listener: () => void) {
 function syncPreview(index: number) {
   const config = configs[index];
   byId("preview-heading").textContent = chartFamily(config) === "states" ? config.title : chartTypeLabels[chartFamily(config)];
-  byId("chart-palette").parentElement!.hidden = config.title === "Error state" || (config.type === "strip" && !!config.segmented);
+  byId("chart-palette").parentElement!.hidden = chartFamily(config) === "states" || (config.type === "strip" && !!config.segmented);
   byId("preview-range-label").textContent = "Sort by";
   byId("preview-range").parentElement!.hidden = config.type !== "strip" || !!config.segmented;
   const isCapacity = config.type === "strip" && !!config.segmented;
@@ -658,7 +657,7 @@ function syncPreview(index: number) {
   selectSegment(donutLegend, isDonut && config.legend !== false);
   selectSegment(donutCenter, isDonut && config.showCenter !== false);
   donutWidth.value = isDonut && config.ringWidth !== undefined ? String(config.ringWidth) : "auto";
-  donutGap.value = isDonut ? String(config.gap ?? 4) : "4";
+  donutGap.value = isDonut ? String(config.gap ?? 2) : "2";
   syncSelectDropdown(donutWidth);
   syncSelectDropdown(donutGap);
   byId("legend-position-field").hidden = isCapacity || (config.type !== "strip" && (!isDonut || config.legend === false));

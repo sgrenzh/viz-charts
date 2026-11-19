@@ -45,7 +45,7 @@ export const presets: { config: ChartConfig; layout?: "wide" | "calendar"; previ
     { label: "Adult", value: 5400 }, { label: "Concession", value: 2700 }, { label: "Child", value: 1900 }, { label: "Member", value: 800 },
   ] } },
   { previousTitle: "Loading state", config: { version: 1, type: "column", title: "Loading state", height: 200, labels: [], series: [{ name: "Values", values: [] }] } },
-  { previousTitle: "Error state", config: { version: 1, type: "column", title: "Error state", headline: "—", height: 200, labels: [], series: [{ name: "Values", values: [] }] } },
+  { previousTitle: "Error state", config: { version: 1, type: "column", title: "Error state", height: 200, labels: [], series: [{ name: "Values", values: [] }] } },
   { previousTitle: "Tickets reserved", config: { version: 1, type: "strip", title: "Ticket reservations", segmented: true, capacity: 1_000, segmentCount: 120, height: 40, legendPosition: "below", items: [
     { label: "Adult", value: 320, color: "var(--viz-palette-purple, #8052ca)" },
     { label: "Concession", value: 210, color: "var(--viz-palette-orange, #e95f1c)" },

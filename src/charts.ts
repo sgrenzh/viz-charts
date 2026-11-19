@@ -485,7 +485,7 @@ function donut(config: DonutConfig, width: number, formatValue: typeof format, d
   const cx = width / 2, cy = height / 2;
   const total = stripTotal(config.items);
   const visibleCount = config.items.filter(item => item.value > 0).length;
-  const gapAngle = visibleCount > 1 && radius ? Math.min((config.gap ?? 4) / radius, Math.PI / visibleCount) : 0;
+  const gapAngle = visibleCount > 1 && radius ? Math.min((config.gap ?? 2) / radius, Math.PI / visibleCount) : 0;
   const shapeArc = arc().innerRadius(Math.max(0, outer - thickness)).outerRadius(outer)
     .cornerRadius(Math.min(thickness / 2, Math.max(0.5, diameter * 0.025))).padRadius(radius);
   const hitArc = arc().innerRadius(Math.max(0, outer - thickness - 9)).outerRadius(outer + 9).padRadius(radius);
@@ -500,7 +500,7 @@ function donut(config: DonutConfig, width: number, formatValue: typeof format, d
     const middle = (angle + next) / 2;
     if (share > 0) {
       const d = shapeArc({ innerRadius: Math.max(0, outer - thickness), outerRadius: outer, startAngle: angle, endAngle: next, padAngle: Math.min(gapAngle, (next - angle) * 0.8) });
-      if (d) shapes.push(shape("path", { d, transform: `translate(${cx} ${cy})`, fill, class: "viz-donut-segment" }));
+      if (d) shapes.push(shape("path", { d, transform: `translate(${cx} ${cy})`, style: `--donut-x:${cx}px;--donut-y:${cy}px`, fill, class: "viz-donut-segment", "data-donut-segment-index": i, "data-selected": String(i === (config.selected ?? 0)) }));
       const hit = hitArc({ innerRadius: Math.max(0, outer - thickness - 9), outerRadius: outer + 9, startAngle: angle, endAngle: next, padAngle: Math.min(gapAngle, (next - angle) * 0.8) });
       if (hit) hits.push(shape("path", { d: hit, transform: `translate(${cx} ${cy})`, fill: "transparent", "data-donut-index": i, class: "viz-donut-hit" }));
     }
@@ -769,6 +769,9 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     stripSelection = index;
     const items = config.items;
     if (config.type === "donut") {
+      svg.querySelectorAll<SVGElement>("[data-donut-segment-index]").forEach(segment => {
+        segment.setAttribute("data-selected", String(Number(segment.getAttribute("data-donut-segment-index")) === index));
+      });
       const center = svg.querySelector<HTMLElement>(".viz-donut-center");
       if (center) {
         const total = stripTotal(items);
@@ -807,23 +810,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       stateAnnouncement.textContent = visualState === "loading" ? "Loading chart" : "Couldn’t load chart";
       card.dataset.loadingStyle = retrying ? "skeleton" : options.loadingStyle ?? "skeleton";
       const headingCopy = element("div", "viz-heading-copy");
-      const showSkeleton = visualState === "loading" && card.dataset.loadingStyle === "skeleton";
-      const title = element("h2", showSkeleton ? "viz-loading-title" : undefined);
-      title.textContent = visualState === "loading" && !showSkeleton ? "Monthly activity" : "Title";
+      const title = element("h2");
+      title.textContent = "Monthly activity";
       headingCopy.append(title);
       card.toggleAttribute("data-retrying", retrying);
-      if (retrying) {
-        const previous = element("div", "viz-retry-heading");
-        previous.setAttribute("aria-hidden", "true");
-        const previousTitle = element("h2"); previousTitle.textContent = "Title";
-        const previousMetric = element("p", "viz-headline viz-error-metric"); previousMetric.textContent = "-";
-        previous.append(previousTitle, previousMetric);
-        headingCopy.append(previous);
-      }
-      if (visualState === "error") {
-        const metric = element("p", "viz-headline viz-error-metric"); metric.textContent = "-";
-        headingCopy.append(metric);
-      }
       header.replaceChildren(headingCopy);
       const state = element("div", "viz-state-body");
       if (visualState === "loading") {
@@ -846,7 +836,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
           event.stopPropagation();
           retrying = true;
           render();
-          retryTimer = window.setTimeout(() => { retrying = false; retryTimer = undefined; if (card.isConnected) render(); }, 2200);
+          retryTimer = window.setTimeout(() => { retrying = false; retryTimer = undefined; if (card.isConnected) render(); }, 5200);
         });
         state.append(message, retry);
       }
