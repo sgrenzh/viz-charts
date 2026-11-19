@@ -500,7 +500,7 @@ function donut(config: DonutConfig, width: number, formatValue: typeof format, d
     const middle = (angle + next) / 2;
     if (share > 0) {
       const d = shapeArc({ innerRadius: Math.max(0, outer - thickness), outerRadius: outer, startAngle: angle, endAngle: next, padAngle: Math.min(gapAngle, (next - angle) * 0.8) });
-      if (d) shapes.push(shape("path", { d, transform: `translate(${cx} ${cy})`, style: `--donut-x:${cx}px;--donut-y:${cy}px`, fill, class: "viz-donut-segment", "data-donut-segment-index": i, "data-selected": String(i === (config.selected ?? 0)) }));
+      if (d) shapes.push(shape("path", { d, transform: `translate(${cx} ${cy})`, style: `--donut-lead:${config.items[0]?.color ?? color}`, fill, class: "viz-donut-segment", "data-donut-segment-index": i, "data-selected": String(i === (config.selected ?? 0)) }));
       const hit = hitArc({ innerRadius: Math.max(0, outer - thickness - 9), outerRadius: outer + 9, startAngle: angle, endAngle: next, padAngle: Math.min(gapAngle, (next - angle) * 0.8) });
       if (hit) hits.push(shape("path", { d: hit, transform: `translate(${cx} ${cy})`, fill: "transparent", "data-donut-index": i, class: "viz-donut-hit" }));
     }

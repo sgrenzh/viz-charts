@@ -564,6 +564,10 @@ const filters = Object.entries({ all: "All", ...familyLabels }).map(([family, la
     gallery.classList.toggle("is-filtered", family !== "all");
     for (const filter of filters) filter.pill.setAttribute("aria-pressed", String(filter.family === activeFamily));
     charts.forEach((chart, i) => { chart.card.hidden = !matchesFilter(configs[i]); });
+    const orderedCharts = family === "bar"
+      ? [...charts.filter((_, i) => chartFamily(configs[i]) === "progress"), ...charts.filter((_, i) => chartFamily(configs[i]) !== "progress")]
+      : charts;
+    gallery.append(...orderedCharts.map(chart => chart.card));
   });
   chartTypes.append(pill);
   return { family, pill };
@@ -1174,16 +1178,17 @@ byId("reset").addEventListener("click", () => {
   status.textContent = "Preset restored.";
 });
 
-// Fade the navigation as it crosses the viewport edge, in either scroll direction.
+// Shrink the navigation as it crosses the viewport edge, in either scroll direction.
 const chartNav = document.querySelector<HTMLElement>(".chart-nav")!;
-let navFadeFrame = 0;
-function updateNavFade() {
-  navFadeFrame = 0;
-  const { top, height } = chartNav.getBoundingClientRect();
-  chartNav.style.opacity = String(Math.max(0, Math.min(1, (top + height) / height)));
+let navScaleFrame = 0;
+function updateNavScale() {
+  navScaleFrame = 0;
+  const top = chartNav.getBoundingClientRect().top;
+  const progress = Math.max(0, Math.min(1, -top / chartNav.offsetHeight));
+  chartNav.style.setProperty("--nav-scroll-scale", String(1 - progress * 0.05));
 }
 window.addEventListener("scroll", () => {
-  if (!navFadeFrame) navFadeFrame = requestAnimationFrame(updateNavFade);
+  if (!navScaleFrame) navScaleFrame = requestAnimationFrame(updateNavScale);
 }, { passive: true });
-window.addEventListener("resize", updateNavFade);
-updateNavFade();
+window.addEventListener("resize", updateNavScale);
+updateNavScale();
