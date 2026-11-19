@@ -113,6 +113,7 @@
 .viz-card[data-segmented][data-has-selection] .viz-legend button[aria-pressed="false"] { background: var(--viz-grid); }
 .viz-card[data-segmented] .viz-strip-segment { transition: fill 300ms ease; }
 .viz-card[data-segmented] .viz-legend button { transition: background-color 300ms ease, color 300ms ease; }
+.viz-card[data-segmented] .viz-legend button:is(:hover, :active) { transform: none; }
 .viz-card[data-segmented] .viz-legend button span:nth-child(2) { color: var(--viz-muted); }
 .viz-legend button:is(:hover, :focus-visible) { color: var(--viz-ink); background: var(--viz-grid); }
 .viz-legend button[aria-pressed="true"] { color: var(--viz-ink); background: color-mix(in srgb, var(--strip-color) 12%, var(--viz-surface)); }

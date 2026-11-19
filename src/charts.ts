@@ -367,7 +367,7 @@ function stripFill(item: StripConfig["items"][number], index: number, selected: 
 
 function segmentFill(item: StripConfig["items"][number], index: number, selected: number) {
   const base = item.color ?? (index % 3 === 0 ? color : tint(index % 3 === 1 ? "75%" : "52%", color));
-  return selected < 0 || index === selected ? base : "var(--viz-grid)";
+  return selected < 0 || index === selected ? base : tint("55%", base);
 }
 
 const shareFormat: AxisConfig = { format: "percent", digits: 1 };
@@ -377,7 +377,7 @@ function strip(config: StripConfig, width: number, formatValue: typeof format): 
     const height = config.height ?? 40;
     const total = stripTotal(config.items);
     const capacity = Math.max(config.capacity ?? total, total, Number.EPSILON);
-    const targetCount = Math.max(1, Math.min(config.segmentCount ?? 80, Math.floor(width / 3)));
+    const targetCount = Math.max(1, Math.min(config.segmentCount ?? 120, Math.floor(width / 3)));
     const originalStep = width / targetCount;
     const originalGap = Math.min(2, originalStep * 0.25);
     let barWidth = Math.min(width, originalStep - originalGap + 2);
@@ -763,9 +763,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
 
   function selectStrip(index: number) {
     if ((config.type !== "strip" && config.type !== "donut") || !config.items[index] || !layout?.marks[index]) return;
-    stripSelection = index;
+    const segmented = config.type === "strip" && !!config.segmented;
+    const selection = segmented && stripSelection === index ? -1 : index;
+    stripSelection = selection;
     const items = config.items;
-    if (config.type === "strip" && config.segmented) card.setAttribute("data-has-selection", "");
     if (config.type === "donut") {
       const center = svg.querySelector<HTMLElement>(".viz-donut-center");
       if (center) {
@@ -779,14 +780,15 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     }
     svg.querySelectorAll("[data-strip-index]").forEach(segment => {
       const i = Number(segment.getAttribute("data-strip-index"));
-      segment.setAttribute("fill", config.type === "strip" && config.segmented ? segmentFill(items[i], i, index) : stripFill(items[i], i, index));
+      segment.setAttribute("fill", segmented ? segmentFill(items[i], i, selection) : stripFill(items[i], i, selection));
     });
     items.forEach((item, i) => {
-      const fill = config.type === "strip" && config.segmented ? segmentFill(item, i, -1) : stripFill(item, i, index);
+      const fill = segmented ? segmentFill(item, i, -1) : stripFill(item, i, selection);
       layout.marks[i].colors = [fill, fill];
-      stripRows[i]?.setAttribute("aria-pressed", String(i === index));
-      stripRows[i]?.style.setProperty("--strip-dot", fill);
+      stripRows[i]?.setAttribute("aria-pressed", String(i === selection));
+      if (!segmented) stripRows[i]?.style.setProperty("--strip-dot", fill);
     });
+    if (segmented) card.toggleAttribute("data-has-selection", selection >= 0);
     display(index);
   }
 

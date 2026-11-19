@@ -32,7 +32,6 @@ const donutCenter = byId<HTMLInputElement>("donut-center");
 const donutWidth = byId<HTMLSelectElement>("donut-width");
 const donutGap = byId<HTMLSelectElement>("donut-gap");
 const capacityKey = byId<HTMLInputElement>("capacity-key");
-const segmentCount = byId<HTMLSelectElement>("segment-count");
 const source = byId<HTMLTextAreaElement>("config");
 const status = byId("status");
 const familyLabels = {
@@ -277,7 +276,7 @@ function syncSelectDropdown(select: HTMLSelectElement) {
   const label = document.getElementById(select.getAttribute("aria-labelledby") ?? "")?.textContent ?? "";
   selectDropdowns.get(select)?.refresh(Array.from(select.options, option => option.textContent), select.selectedIndex, label);
 }
-for (const select of [sitePalette, chartPalette, legendPosition, donutWidth, donutGap, segmentCount]) {
+for (const select of [sitePalette, chartPalette, legendPosition, donutWidth, donutGap]) {
   const dropdown = createDropdown(`${select.id}-menu`, index => {
     select.selectedIndex = index;
     select.dispatchEvent(new Event("change", { bubbles: true }));
@@ -633,10 +632,7 @@ function syncPreview(index: number) {
   byId("preview-range").parentElement!.hidden = config.type !== "strip" || !!config.segmented;
   const isCapacity = config.type === "strip" && !!config.segmented;
   byId("capacity-key-field").hidden = !isCapacity;
-  byId("segment-count-field").hidden = !isCapacity;
   selectSegment(capacityKey, isCapacity && config.legend !== false);
-  segmentCount.value = String(isCapacity ? config.segmentCount ?? 80 : 80);
-  syncSelectDropdown(segmentCount);
   const isState = chartFamily(config) === "states";
   byId("loading-style-field").hidden = config.title !== "Loading state";
   byId<HTMLInputElement>("loading-skeleton").checked = loadingStyle === "skeleton";
@@ -1044,10 +1040,6 @@ onSegmentChange(donutLegend, () => {
 onSegmentChange(capacityKey, () => {
   const config = configs[previewIndex];
   if (config?.type === "strip" && config.segmented) update({ ...config, legend: capacityKey.checked });
-});
-segmentCount.addEventListener("change", () => {
-  const config = configs[previewIndex];
-  if (config?.type === "strip" && config.segmented) update({ ...config, segmentCount: Number(segmentCount.value) });
 });
 onSegmentChange(donutCenter, () => {
   const config = configs[previewIndex];
