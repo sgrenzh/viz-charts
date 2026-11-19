@@ -367,7 +367,7 @@ function stripFill(item: StripConfig["items"][number], index: number, selected: 
 
 function segmentFill(item: StripConfig["items"][number], index: number, selected: number) {
   const base = item.color ?? (index % 3 === 0 ? color : tint(index % 3 === 1 ? "75%" : "52%", color));
-  return selected < 0 || index === selected ? base : tint("28%", base);
+  return selected < 0 || index === selected ? base : "var(--viz-grid)";
 }
 
 const shareFormat: AxisConfig = { format: "percent", digits: 1 };
@@ -402,7 +402,7 @@ function strip(config: StripConfig, width: number, formatValue: typeof format): 
       const end = boundaries[i];
       const mark = { label: item.label, x: barWidth / 2 + (start + end) / 2 / capacity * Math.max(0, (count - 1) * step), y: height / 2,
         values: [[item.label, formatValue(item.value)], ["Share", formatValue(stripShare(item.value, capacity), shareFormat)]] as [string, string][],
-        colors: [segmentFill(item, i, selected), segmentFill(item, i, selected)] };
+        colors: [segmentFill(item, i, -1), segmentFill(item, i, -1)] };
       start = end;
       return mark;
     });
@@ -765,6 +765,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     if ((config.type !== "strip" && config.type !== "donut") || !config.items[index] || !layout?.marks[index]) return;
     stripSelection = index;
     const items = config.items;
+    if (config.type === "strip" && config.segmented) card.setAttribute("data-has-selection", "");
     if (config.type === "donut") {
       const center = svg.querySelector<HTMLElement>(".viz-donut-center");
       if (center) {
@@ -781,7 +782,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       segment.setAttribute("fill", config.type === "strip" && config.segmented ? segmentFill(items[i], i, index) : stripFill(items[i], i, index));
     });
     items.forEach((item, i) => {
-      const fill = config.type === "strip" && config.segmented ? segmentFill(item, i, index) : stripFill(item, i, index);
+      const fill = config.type === "strip" && config.segmented ? segmentFill(item, i, -1) : stripFill(item, i, index);
       layout.marks[i].colors = [fill, fill];
       stripRows[i]?.setAttribute("aria-pressed", String(i === index));
       stripRows[i]?.style.setProperty("--strip-dot", fill);
@@ -798,6 +799,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     });
     card.dataset.chart = config.type;
     card.toggleAttribute("data-segmented", config.type === "strip" && !!config.segmented);
+    card.toggleAttribute("data-has-selection", config.type === "strip" && !!config.segmented && stripSelection >= 0);
     if (options.demoState) {
       const visualState = retrying ? "loading" : options.demoState;
       card.dataset.state = visualState;
@@ -906,7 +908,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
         const share = element("span");
         button.type = "button";
         button.setAttribute("aria-pressed", String(i === stripSelection));
-        const itemColor = config.type === "donut" ? donutColor(item, i, config.items[0]?.color ?? color) : config.type === "strip" && config.segmented ? segmentFill(item, i, stripSelection) : stripFill(item, i, stripSelection);
+        const itemColor = config.type === "donut" ? donutColor(item, i, config.items[0]?.color ?? color) : config.type === "strip" && config.segmented ? segmentFill(item, i, -1) : stripFill(item, i, stripSelection);
         button.style.setProperty("--strip-color", itemColor);
         button.style.setProperty("--strip-dot", itemColor);
         name.textContent = item.label;

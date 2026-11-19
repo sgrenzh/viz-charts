@@ -32,7 +32,6 @@ const donutCenter = byId<HTMLInputElement>("donut-center");
 const donutWidth = byId<HTMLSelectElement>("donut-width");
 const donutGap = byId<HTMLSelectElement>("donut-gap");
 const capacityKey = byId<HTMLInputElement>("capacity-key");
-const segmentHeight = byId<HTMLSelectElement>("segment-height");
 const segmentCount = byId<HTMLSelectElement>("segment-count");
 const source = byId<HTMLTextAreaElement>("config");
 const status = byId("status");
@@ -179,9 +178,11 @@ function createDropdown(id: string, onSelect: (index: number) => void) {
   root.append(trigger, menu);
 
   let labels: string[] = [];
+  let swatches: string[] | undefined;
   let selected = 0;
-  function refresh(options: string[], index: number, label: string) {
+  function refresh(options: string[], index: number, label: string, colors?: string[]) {
     labels = options;
+    swatches = colors;
     selected = index;
     text.textContent = labels[selected] ?? "";
     trigger.setAttribute("aria-label", `${label}: ${text.textContent}`);
@@ -224,7 +225,13 @@ function createDropdown(id: string, onSelect: (index: number) => void) {
       item.tabIndex = -1;
       item.setAttribute("role", "menuitemradio");
       item.setAttribute("aria-checked", String(index === selected));
-      item.textContent = label;
+      if (swatches) {
+        const dot = document.createElement("span"); dot.className = "dropdown-color-dot";
+        dot.setAttribute("aria-hidden", "true");
+        if (swatches[index]) dot.style.background = swatches[index];
+        item.append(dot);
+      }
+      item.append(document.createTextNode(label));
       if (index === selected) item.append(icon("check"));
       item.addEventListener("click", () => {
         close(true);
@@ -270,7 +277,7 @@ function syncSelectDropdown(select: HTMLSelectElement) {
   const label = document.getElementById(select.getAttribute("aria-labelledby") ?? "")?.textContent ?? "";
   selectDropdowns.get(select)?.refresh(Array.from(select.options, option => option.textContent), select.selectedIndex, label);
 }
-for (const select of [sitePalette, chartPalette, legendPosition, donutWidth, donutGap, segmentHeight, segmentCount]) {
+for (const select of [sitePalette, chartPalette, legendPosition, donutWidth, donutGap, segmentCount]) {
   const dropdown = createDropdown(`${select.id}-menu`, index => {
     select.selectedIndex = index;
     select.dispatchEvent(new Event("change", { bubbles: true }));
@@ -621,17 +628,14 @@ function onSegmentChange(on: HTMLInputElement, listener: () => void) {
 function syncPreview(index: number) {
   const config = configs[index];
   byId("preview-heading").textContent = chartFamily(config) === "states" ? config.title : config.type === "strip" && config.segmented ? "Segmented capacity" : chartTypeLabels[chartFamily(config)];
-  byId("chart-palette").parentElement!.hidden = config.title === "Error state";
+  byId("chart-palette").parentElement!.hidden = config.title === "Error state" || (config.type === "strip" && !!config.segmented);
   byId("preview-range-label").textContent = "Sort by";
   byId("preview-range").parentElement!.hidden = config.type !== "strip" || !!config.segmented;
   const isCapacity = config.type === "strip" && !!config.segmented;
   byId("capacity-key-field").hidden = !isCapacity;
-  byId("segment-height-field").hidden = !isCapacity;
   byId("segment-count-field").hidden = !isCapacity;
   selectSegment(capacityKey, isCapacity && config.legend !== false);
-  segmentHeight.value = String(isCapacity ? config.height ?? 40 : 40);
   segmentCount.value = String(isCapacity ? config.segmentCount ?? 80 : 80);
-  syncSelectDropdown(segmentHeight);
   syncSelectDropdown(segmentCount);
   const isState = chartFamily(config) === "states";
   byId("loading-style-field").hidden = config.title !== "Loading state";
@@ -678,7 +682,7 @@ function renderColorControls(config: ChartConfig) {
   container.replaceChildren();
   entries.forEach((entry, i) => {
     const row = document.createElement("div"); row.className = "option-row";
-    const fieldLabel = config.type === "column" && config.stacked ? `${i === 0 ? "First" : i === 1 ? "Second" : `Series ${i + 1}`} series color` : `${entry.name} color`;
+    const fieldLabel = config.type === "strip" && config.segmented ? `Segment ${i + 1} color` : config.type === "column" && config.stacked ? `${i === 0 ? "First" : i === 1 ? "Second" : `Series ${i + 1}`} series color` : `${entry.name} color`;
     const name = document.createElement("span"); name.textContent = fieldLabel;
     const choices = [["Auto", ""], ...Object.keys(colorChoices).flatMap(key => [[`${key[0].toUpperCase() + key.slice(1)} primary`, `var(--viz-palette-${key}, ${colorChoices[key][0]})`], [`${key[0].toUpperCase() + key.slice(1)} secondary`, `color-mix(in srgb, var(--viz-palette-${key}, ${colorChoices[key][0]}) var(--viz-page-secondary-strength, 50%), var(--viz-surface))`]])];
     const palette = appearances[previewIndex].palette ?? siteAppearance.palette;
@@ -692,9 +696,18 @@ function renderColorControls(config: ChartConfig) {
       syncPreviewAppearance(previewIndex);
       container.querySelectorAll<HTMLButtonElement>(".dropdown-trigger")[i]?.focus({ preventScroll: true });
     });
-    dropdown.refresh(choices.map(([label]) => label), selected, fieldLabel);
+    dropdown.root.classList.add("series-color-dropdown");
+    styleColorDropdown(dropdown.root, previewIndex);
+    dropdown.refresh(choices.map(([label]) => label), selected, fieldLabel, choices.map(([, value]) => value));
     row.append(name, dropdown.root); container.append(row);
   });
+}
+
+function styleColorDropdown(root: HTMLElement, index: number) {
+  const dark = isDark(appearances[index].theme ?? siteAppearance.theme);
+  for (const [name, values] of Object.entries(colorChoices)) root.style.setProperty(`--viz-palette-${name}`, values[dark ? 1 : 0]);
+  root.style.setProperty("--viz-surface", dark ? "#26272e" : "#fdfcfd");
+  root.style.setProperty("--viz-page-secondary-strength", dark ? "66%" : "50%");
 }
 
 function syncPreviewAppearance(index: number) {
@@ -707,6 +720,7 @@ function syncPreviewAppearance(index: number) {
   const segment = themeOptions[0]?.closest<HTMLElement>(".segmented");
   if (segment) syncSegmentIndicator(segment);
   styleChartAppearance(previewHost, index);
+  previewFields.querySelectorAll<HTMLElement>(".series-color-dropdown").forEach(root => styleColorDropdown(root, index));
 }
 
 function storeChartAppearances() {
@@ -1030,10 +1044,6 @@ onSegmentChange(donutLegend, () => {
 onSegmentChange(capacityKey, () => {
   const config = configs[previewIndex];
   if (config?.type === "strip" && config.segmented) update({ ...config, legend: capacityKey.checked });
-});
-segmentHeight.addEventListener("change", () => {
-  const config = configs[previewIndex];
-  if (config?.type === "strip" && config.segmented) update({ ...config, height: Number(segmentHeight.value) });
 });
 segmentCount.addEventListener("change", () => {
   const config = configs[previewIndex];

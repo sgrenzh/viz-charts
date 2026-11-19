@@ -104,12 +104,15 @@
 }
 .viz-strip-segment { cursor: pointer; }
 .viz-card[data-segmented] .viz-capacity-summary { grid-column: 2; grid-row: 1; justify-self: end; color: var(--viz-ink); font-size: var(--viz-type-label-size); line-height: var(--viz-type-label-line); font-weight: var(--viz-type-medium); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.viz-capacity-total { color: var(--viz-muted); }
+.viz-capacity-total { color: color-mix(in srgb, var(--viz-muted) 70%, var(--viz-surface)); }
 .viz-card[data-segmented] .viz-heading { min-height: 0; margin-bottom: 21px; }
 .viz-card[data-segmented] .viz-body[data-legend-position] { gap: 24px; }
 .viz-card[data-segmented] .viz-legend { display: flex; flex-wrap: wrap; gap: 8px; }
 .viz-card[data-segmented] .viz-legend button { display: inline-flex; align-items: center; gap: 8px; width: auto; padding: 6px 9px; border-radius: 8px; background: color-mix(in srgb, var(--strip-color) 10%, var(--viz-surface)); color: var(--viz-ink); }
 .viz-card[data-segmented] .viz-legend button:is(:hover, :focus-visible, [aria-pressed="true"]) { background: color-mix(in srgb, var(--strip-color) 20%, var(--viz-surface)); }
+.viz-card[data-segmented][data-has-selection] .viz-legend button[aria-pressed="false"] { background: var(--viz-grid); }
+.viz-card[data-segmented] .viz-strip-segment { transition: fill 300ms ease; }
+.viz-card[data-segmented] .viz-legend button { transition: background-color 300ms ease, color 300ms ease; }
 .viz-card[data-segmented] .viz-legend button span:nth-child(2) { color: var(--viz-muted); }
 .viz-legend button:is(:hover, :focus-visible) { color: var(--viz-ink); background: var(--viz-grid); }
 .viz-legend button[aria-pressed="true"] { color: var(--viz-ink); background: color-mix(in srgb, var(--strip-color) 12%, var(--viz-surface)); }
@@ -161,5 +164,6 @@
 [data-chart-theme="dark"] .viz-button-error { background: #602b2b; color: #ffaaa3; }
 .viz-button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .viz-card[data-state="loading"]::after, .viz-loading-spinner, .viz-loading-label, .viz-card[data-retrying] .viz-loading-title { animation: none !important; } .viz-retry-heading, .viz-retry-wipe { display: none; } }
+@media (prefers-reduced-motion: reduce) { .viz-card[data-segmented] .viz-strip-segment, .viz-card[data-segmented] .viz-legend button { transition: none; } }
 
 .viz-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }

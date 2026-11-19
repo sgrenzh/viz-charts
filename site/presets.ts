@@ -46,10 +46,10 @@ export const presets: { config: ChartConfig; layout?: "wide" | "calendar"; previ
   ] } },
   { previousTitle: "Loading state", config: { version: 1, type: "column", title: "Loading state", height: 200, labels: [], series: [{ name: "Values", values: [] }] } },
   { previousTitle: "Error state", config: { version: 1, type: "column", title: "Error state", headline: "—", height: 200, labels: [], series: [{ name: "Values", values: [] }] } },
-  { previousTitle: "Exhibition tickets reserved", config: { version: 1, type: "strip", title: "Tickets reserved", segmented: true, capacity: 1_000, segmentCount: 80, height: 40, legendPosition: "below", items: [
-    { label: "Adult", value: 320, color: "var(--viz-palette-orange, #e95f1c)" },
-    { label: "Concession", value: 210, color: "var(--viz-palette-blue, #4977e1)" },
-    { label: "Child", value: 140, color: "var(--viz-palette-purple, #8052ca)" },
-    { label: "Member", value: 90, color: "var(--viz-palette-green, #009b68)" },
+  { previousTitle: "Exhibition tickets reserved", config: { version: 1, type: "strip", title: "Tickets reserved", segmented: true, capacity: 1_000, segmentCount: 120, height: 40, legendPosition: "below", items: [
+    { label: "Adult", value: 320, color: "var(--viz-palette-purple, #8052ca)" },
+    { label: "Concession", value: 210, color: "var(--viz-palette-orange, #e95f1c)" },
+    { label: "Child", value: 140, color: "var(--viz-palette-green, #009b68)" },
+    { label: "Member", value: 90, color: "var(--viz-palette-blue, #4977e1)" },
   ] } },
 ];

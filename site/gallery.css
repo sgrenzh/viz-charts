@@ -382,6 +382,7 @@ dialog::backdrop { background: #0009; }
 .dropdown-menu button:is(:hover, :focus-visible) { background: var(--dropdown-selection); outline-offset: -3px; }
 .dropdown-menu button[aria-checked="true"]:focus-visible:not(:hover) { background: transparent; }
 .dropdown-menu svg { width: 18px; height: 18px; flex: none; }
+.dropdown-color-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; }
 
 .dialog-heading { position: sticky; top: 0; z-index: 1; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .dialog-heading h2 { margin: 0; font-size: var(--viz-type-subheading-size); font-weight: var(--viz-type-semibold); line-height: var(--viz-type-subheading-line); }
