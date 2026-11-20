@@ -118,12 +118,11 @@
 .viz-card[data-segmented] .viz-legend button span:nth-child(2) { color: var(--viz-muted); }
 .viz-legend button:is(:hover, :focus-visible) { color: var(--viz-ink); background: var(--viz-grid); }
 .viz-legend button[aria-pressed="true"] { color: var(--viz-ink); background: color-mix(in srgb, var(--strip-color) 12%, var(--viz-surface)); }
-.viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend { row-gap: 6px; }
-.viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend button { min-height: 38px; align-items: center; padding: 8px 12px; border: 1px solid var(--viz-grid); border-radius: 8px; background: transparent; transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease; }
+.viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend button { min-height: 0; align-items: center; padding: 4px; border: 1px solid transparent; border-radius: 8px; background: transparent; transition: min-height 250ms ease, padding 250ms ease, background-color 250ms ease, color 250ms ease; }
 .viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend button span:first-child { display: flex; align-items: center; }
 .viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend button span:first-child::before { flex: 0 0 8px; }
-.viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend button:is(:hover, :focus-visible) { color: var(--viz-ink); background: var(--viz-grid); }
-.viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend button[aria-pressed="true"] { color: var(--viz-ink); background: color-mix(in srgb, var(--viz-grid) 55%, var(--viz-surface)); border-color: var(--viz-grid); }
+.viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend button:is(:hover, :focus-visible) { color: var(--viz-ink); }
+.viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend button[aria-pressed="true"] { min-height: 38px; padding: 8px 12px; color: var(--viz-ink); background: color-mix(in srgb, var(--viz-grid) 55%, var(--viz-surface)); }
 @media (prefers-reduced-motion: reduce) { .viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend button { transition: none; } }
 .viz-performance { border-radius: 8px; padding: 2px 7px; background: #def5e8; font-size: var(--viz-type-label-size); line-height: var(--viz-type-label-line); font-weight: var(--viz-type-medium); font-variant-numeric: tabular-nums; color: #087546; }
 .viz-performance[data-direction="negative"] { color: #b3261e; background: #fce4e2; }
@@ -147,10 +146,9 @@
 
 .viz-card[data-state] .viz-heading { min-height: 60px; margin-bottom: 32px; }
 .viz-card[data-state="loading"] { overflow: hidden; }
-.viz-card[data-state="loading"][data-loading-style="skeleton"]::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--viz-ink) 10%, transparent) 50%, transparent 75%); animation: viz-shimmer 1.7s infinite; }
+.viz-card[data-state="loading"][data-loading-style="skeleton"]::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--viz-ink) 14%, transparent) 50%, transparent 75%); animation: viz-shimmer 1.7s cubic-bezier(.6, .08, .25, .92) infinite; }
 @keyframes viz-shimmer {
-  0% { transform: translateX(-150%); animation-timing-function: cubic-bezier(.25, .18, .75, .86); }
-  75% { transform: translateX(105%); animation-timing-function: cubic-bezier(.33, .31, .67, .69); }
+  0% { transform: translateX(-150%); }
   100% { transform: translateX(150%); }
 }
 .viz-card[data-state] .viz-body { min-height: 200px; }
