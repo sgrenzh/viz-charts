@@ -118,7 +118,7 @@
 .viz-card[data-segmented] .viz-legend button span:nth-child(2) { color: var(--viz-muted); }
 .viz-legend button:is(:hover, :focus-visible) { color: var(--viz-ink); background: var(--viz-grid); }
 .viz-legend button[aria-pressed="true"] { color: var(--viz-ink); background: color-mix(in srgb, var(--strip-color) 12%, var(--viz-surface)); }
-.viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend button { min-height: 0; align-items: center; padding: 4px; border: 1px solid transparent; border-radius: 8px; background: transparent; transition: min-height 250ms ease, padding 250ms ease, background-color 250ms ease, color 250ms ease; }
+.viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend button { min-height: 0; align-items: center; padding: 4px 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; transition: min-height 250ms ease, padding 250ms ease, background-color 250ms ease, color 250ms ease; }
 .viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend button span:first-child { display: flex; align-items: center; }
 .viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend button span:first-child::before { flex: 0 0 8px; }
 .viz-card[data-chart="donut"] .viz-body[data-legend-position="below"] .viz-legend button:is(:hover, :focus-visible) { color: var(--viz-ink); }
@@ -146,7 +146,7 @@
 
 .viz-card[data-state] .viz-heading { min-height: 60px; margin-bottom: 32px; }
 .viz-card[data-state="loading"] { overflow: hidden; }
-.viz-card[data-state="loading"][data-loading-style="skeleton"]::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--viz-ink) 14%, transparent) 50%, transparent 75%); animation: viz-shimmer 1.7s cubic-bezier(.6, .08, .25, .92) infinite; }
+.viz-card[data-state="loading"][data-loading-style="skeleton"]::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--viz-ink) 14%, transparent) 50%, transparent 75%); animation: viz-shimmer 1.7s linear infinite; }
 @keyframes viz-shimmer {
   0% { transform: translateX(-150%); }
   100% { transform: translateX(150%); }

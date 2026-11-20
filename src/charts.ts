@@ -485,7 +485,7 @@ function donut(config: DonutConfig, width: number, formatValue: typeof format, d
   const cx = width / 2, cy = height / 2;
   const total = stripTotal(config.items);
   const visibleCount = config.items.filter(item => item.value > 0).length;
-  const gapAngle = visibleCount > 1 && radius ? Math.min((config.gap ?? 2) / radius, Math.PI / visibleCount) : 0;
+  const gapAngle = visibleCount > 1 && radius ? Math.min((config.gap ?? 4) / radius, Math.PI / visibleCount) : 0;
   const shapeArc = arc().innerRadius(Math.max(0, outer - thickness)).outerRadius(outer)
     .cornerRadius(Math.min(thickness / 2, Math.max(0.5, diameter * 0.025))).padRadius(radius);
   const hitArc = arc().innerRadius(Math.max(0, outer - thickness - 9)).outerRadius(outer + 9).padRadius(radius);

@@ -661,7 +661,7 @@ function syncPreview(index: number) {
   selectSegment(donutLegend, isDonut && config.legend !== false);
   selectSegment(donutCenter, isDonut && config.showCenter !== false);
   donutWidth.value = isDonut && config.ringWidth !== undefined ? String(config.ringWidth) : "auto";
-  donutGap.value = isDonut ? String(config.gap ?? 2) : "2";
+  donutGap.value = isDonut ? String(config.gap ?? 4) : "4";
   syncSelectDropdown(donutWidth);
   syncSelectDropdown(donutGap);
   byId("legend-position-field").hidden = isCapacity || (config.type !== "strip" && (!isDonut || config.legend === false));
