@@ -22,6 +22,7 @@
   "scripts": {
     "dev": "vite",
     "check": "tsc -p tsconfig.site.json",
+    "test": "tsc && node --test tests/*.test.mjs",
     "build": "tsc && npm run check && vite build"
   },
   "dependencies": {

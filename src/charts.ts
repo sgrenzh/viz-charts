@@ -1,6 +1,5 @@
 import { scaleBand, scaleLinear } from "d3-scale";
 import { arc, area, line } from "d3-shape";
-import { animateHorizon, captureHorizon } from "./horizon-transition.js";
 
 export type ChartConfig = CartesianConfig | RangeColumnConfig | HeatmapConfig | StripConfig | DonutConfig;
 export type LegendPosition = "below" | "right" | "left";
@@ -106,7 +105,7 @@ interface Mark {
   points?: { y: number; color: string }[];
 }
 interface LineFill { path: string; color: string; top: number; bottom: number }
-interface Layout { width: number; height: number; shapes: Shape[]; marks: Mark[]; clip?: Attrs; lineFill?: LineFill }
+interface Layout { width: number; height: number; shapes: Shape[]; marks: Mark[]; clip?: Attrs; lineFill?: LineFill; lineBounds?: { top: number; bottom: number } }
 export interface ChartOptions {
   formatValue?: (value: number, axis?: AxisConfig) => string;
   formatHeadline?: (value: number) => string;
@@ -314,7 +313,11 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
       points,
     };
   });
-  return { width, height, shapes, marks, ...(lineFill ? { lineFill } : {}) };
+  return {
+    width, height, shapes, marks,
+    ...(column ? {} : { lineBounds: { top, bottom: lineBottom } }),
+    ...(lineFill ? { lineFill } : {}),
+  };
 }
 
 function heatmap(config: HeatmapConfig, available: number, formatValue: typeof format): Layout {
@@ -541,10 +544,6 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   let retryTimer: number | undefined;
   let retrying = false;
   let headline: HTMLParagraphElement | undefined;
-  let previousHeadline = "";
-  let headlineAnimation = 0;
-  let stopHorizonAnimation: (() => void) | undefined;
-  const reducedMotion = host.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)");
   let stripSelection = initial.type === "strip" || initial.type === "donut" ? initial.selected ?? (initial.type === "donut" ? 0 : -1) : -1;
   let layout: Layout;
   let stripRows: HTMLButtonElement[] = [];
@@ -577,50 +576,15 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     return config.type === "line" || config.type === "line-column";
   }
 
-  function displayHeadline(index: number, mark: Mark | undefined, settle: boolean) {
+  function displayHeadline(index: number, mark: Mark | undefined) {
     if (!headline || (config.type !== "line" && config.type !== "line-column")) return;
     const value = config.series[0]?.values[index];
     const text = mark && value != null && options.formatHeadline
       ? options.formatHeadline(value) : mark?.values[0]?.[1] ?? config.headline ?? "";
-    animateHeadline(headline, text, settle);
+    headline.textContent = text;
   }
 
-  function animateHeadline(target: HTMLElement, text: string, settle: boolean) {
-    const current = target.getAttribute("aria-label") ?? target.textContent ?? "";
-    if (!settle && current === text) return;
-    const from = current === text ? previousHeadline : current;
-    previousHeadline = settle ? text : current;
-    headlineAnimation++;
-    target.setAttribute("aria-label", text);
-    if (reducedMotion?.matches || from === text) {
-      if (current !== text || target.childElementCount) target.textContent = text;
-      return;
-    }
-
-    const previousDigits = from.match(/\p{Decimal_Number}/gu) ?? [];
-    const digitCount = text.match(/\p{Decimal_Number}/gu)?.length ?? 0;
-    let position = previousDigits.length - digitCount;
-    let digitIndex = 0;
-    target.replaceChildren(...Array.from(text, character => {
-      if (!/\p{Decimal_Number}/u.test(character)) return character;
-      const order = digitIndex++;
-      if (previousDigits[position++] === character) return character;
-      const slot = element("span", "viz-headline-digit");
-      const digit = element("span", "viz-headline-reel");
-      digit.setAttribute("aria-hidden", "true");
-      digit.style.setProperty("--reel-duration", settle ? "520ms" : "120ms");
-      digit.style.setProperty("--reel-delay", settle ? `${order * 45}ms` : "0ms");
-      const old = element("span"); old.textContent = previousDigits[position - 1] ?? character;
-      const next = element("span"); next.textContent = character;
-      digit.append(old, next);
-      slot.append(digit);
-      return slot;
-    }));
-    const animation = headlineAnimation;
-    window.setTimeout(() => { if (target.isConnected && animation === headlineAnimation) target.textContent = text; }, settle ? 540 + Math.max(0, digitCount - 1) * 45 : 140);
-  }
-
-  function display(index: number, settleHeadline = false, pointer?: PointerEvent, anchor?: HTMLElement) {
+  function display(index: number, pointer?: PointerEvent, anchor?: HTMLElement) {
     active = index;
     const mark = layout?.marks[index];
     if (config.type === "column" || config.type === "line-column" || config.type === "range-column") {
@@ -637,21 +601,21 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     if (config.type === "heatmap") svg.querySelectorAll<SVGElement>("[data-heat-index]").forEach(cell => {
       cell.style.opacity = mark && Number(cell.getAttribute("data-heat-index")) !== index ? "0.3" : "";
     });
-    displayHeadline(index, mark, settleHeadline);
-    const points = isLine() && "series" in config && config.marker !== false ? mark?.points ?? [] : [];
-    const guide = isLine() && "xAxis" in config && config.xAxis?.show !== false && points.length && mark
-      ? [svgElement("line", { x1: mark.x, x2: mark.x, y1: 12, y2: layout.height - ("xAxis" in config && config.xAxis?.label ? 36 : 20) - (config.type === "line-column" && config.showVolume !== false ? 44 : 0),
+    displayHeadline(index, mark);
+    const points = mark?.points ?? [];
+    const bounds = layout?.lineBounds;
+    const guide = bounds && mark && points.length
+      ? [svgElement("line", { x1: mark.x, x2: mark.x, y1: bounds.top, y2: bounds.bottom,
         stroke: "var(--viz-muted)", "stroke-width": 1, "stroke-dasharray": "4 4" })]
       : [];
-    lineMarkers.replaceChildren(...guide, ...points.map(point => svgElement("circle", {
+    const dots = "series" in config && config.marker !== false ? points : [];
+    lineMarkers.replaceChildren(...guide, ...dots.map(point => svgElement("circle", {
       cx: mark.x, cy: point.y, r: 5, fill: point.color, stroke: "var(--viz-surface)", "stroke-width": 1,
     })));
-    const wasHidden = tooltip.hidden;
     tooltip.hidden = !mark;
     if (mark) scroller.setAttribute("aria-describedby", tooltip.id);
     else scroller.removeAttribute("aria-describedby");
     if (!mark) return;
-    if (wasHidden) tooltip.classList.add("viz-tooltip-instant");
     const title = element("strong");
     title.textContent = mark.label;
     const segmented = config.type === "strip" && !!config.segmented;
@@ -679,7 +643,6 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const offset = anchorBounds ? (anchorBounds.left - cardBounds.left) / scaleX + anchorBounds.width / scaleX / 2 : (plotBounds.left - cardBounds.left) / scaleX + pointX - scroller.scrollLeft;
     tooltip.style.left = Math.max(12, Math.min(card.clientWidth - tooltip.offsetWidth - 12, offset + 12)) + "px";
     tooltip.style.top = Math.max(12, (anchorBounds ? (anchorBounds.top - cardBounds.top) / scaleY : (plotBounds.top - cardBounds.top) / scaleY + pointY) - tooltip.offsetHeight - 8) + "px";
-    if (wasHidden) { void tooltip.offsetWidth; tooltip.classList.remove("viz-tooltip-instant"); }
   }
 
   function draw() {
@@ -786,7 +749,8 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       if (center) {
         const total = stripTotal(items);
         const value = (options.formatValue ?? format)(stripShare(items[index].value, total), shareFormat);
-        animateHeadline(center, value, true);
+        center.textContent = value;
+        center.setAttribute("aria-label", value);
       }
       stripRows.forEach((row, i) => row.setAttribute("aria-pressed", String(i === index)));
       display(index);
@@ -818,7 +782,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const visualState = retrying ? "loading" : options.demoState;
       card.dataset.state = visualState;
       stateAnnouncement.textContent = visualState === "loading" ? "Loading chart" : "Couldn’t load chart";
-      card.dataset.loadingStyle = retrying ? "skeleton" : options.loadingStyle ?? "skeleton";
+      card.dataset.loadingStyle = retrying ? "spinner" : options.loadingStyle ?? "skeleton";
       const headingCopy = element("div", "viz-heading-copy");
       const title = element("h2");
       title.textContent = "Monthly activity";
@@ -828,17 +792,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const state = element("div", "viz-state-body");
       if (visualState === "loading") {
         state.setAttribute("aria-hidden", "true");
-        if (retrying) {
-          state.classList.add("viz-retry-wipe");
-          const message = element("p", "viz-error-message"); message.textContent = "Couldn’t load chart";
-          const retry = element("button", "viz-button viz-button-small viz-button-error"); retry.type = "button"; retry.textContent = "Retry"; retry.disabled = true; retry.tabIndex = -1;
-          state.append(message, retry);
-        } else {
-          const indicator = element("div", "viz-loading-indicator");
-          const spinner = element("span", "viz-loading-spinner");
-          const label = element("span", "viz-loading-label"); label.textContent = "Loading...";
-          indicator.append(spinner, label); state.append(indicator);
-        }
+        const indicator = element("div", "viz-loading-indicator");
+        const spinner = element("span", "viz-loading-spinner");
+        const label = element("span", "viz-loading-label"); label.textContent = "Loading...";
+        indicator.append(spinner, label); state.append(indicator);
       } else {
         const message = element("p", "viz-error-message"); message.textContent = "Couldn’t load chart";
         const retry = element("button", "viz-button viz-button-small viz-button-error"); retry.type = "button"; retry.textContent = "Retry";
@@ -860,7 +817,6 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     title.textContent = config.title;
     headingCopy.append(title);
     headline = undefined;
-    previousHeadline = config.headline ?? "";
     if (config.headline) {
       const metric = element("div", "viz-metric");
       headline = element("p", "viz-headline");
@@ -921,17 +877,17 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
         let lastPointerType = "";
         if (segmented) {
           button.addEventListener("pointerdown", event => { lastPointerType = event.pointerType; });
-          button.addEventListener("pointerenter", event => { if (event.pointerType !== "touch" && touchTooltipIndex < 0) display(i, false, undefined, button); });
+          button.addEventListener("pointerenter", event => { if (event.pointerType !== "touch" && touchTooltipIndex < 0) display(i, undefined, button); });
           button.addEventListener("pointerleave", event => { if (event.pointerType !== "touch" && touchTooltipIndex < 0 && !button.matches(":focus-visible")) display(-1); });
         }
-        button.addEventListener("focus", () => { if (!segmented || lastPointerType !== "touch") display(i, false, undefined, segmented ? button : undefined); });
+        button.addEventListener("focus", () => { if (!segmented || lastPointerType !== "touch") display(i, undefined, segmented ? button : undefined); });
         button.addEventListener("blur", () => { touchTooltipIndex = -1; display(-1); });
         button.addEventListener("click", () => {
           if (!segmented) { selectStrip(i); return; }
           if (lastPointerType === "touch") {
             touchTooltipIndex = touchTooltipIndex === i ? -1 : i;
-            display(touchTooltipIndex, false, undefined, button);
-          } else { touchTooltipIndex = -1; display(i, false, undefined, button); }
+            display(touchTooltipIndex, undefined, button);
+          } else { touchTooltipIndex = -1; display(i, undefined, button); }
           lastPointerType = "";
         });
         return button;
@@ -998,7 +954,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     if (isLine() && index === active && !dragging) return;
     if (dragging) pinned = true;
     if (config.type === "donut" && index >= 0 && index !== stripSelection) selectStrip(index);
-    display(index, false, config.type === "donut" || (config.type === "strip" && config.segmented) ? event : undefined);
+    display(index, config.type === "donut" || (config.type === "strip" && config.segmented) ? event : undefined);
   });
   svg.addEventListener("pointerup", event => {
     if (!event.isPrimary || event.button !== 0) return;
@@ -1007,28 +963,28 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       if (index < 0 || touchTooltipIndex === index) {
         touchTooltipIndex = -1;
         pinned = false;
-        display(-1, true);
+        display(-1);
       } else {
         touchTooltipIndex = index;
         if (config.type === "strip" || config.type === "donut") selectStrip(index);
         else pinned = true;
-        display(index, true, config.type === "donut" ? event : undefined);
+        display(index, config.type === "donut" ? event : undefined);
       }
       return;
     }
     if (config.type === "strip" && config.segmented) {
       if (event.pointerType === "touch") touchTooltipIndex = index < 0 || touchTooltipIndex === index ? -1 : index;
-      display(event.pointerType === "touch" ? touchTooltipIndex : index, false, event);
-    } else if (config.type === "strip" || config.type === "donut") { selectStrip(index); if (config.type === "donut") display(index, false, event); }
+      display(event.pointerType === "touch" ? touchTooltipIndex : index, event);
+    } else if (config.type === "strip" || config.type === "donut") { selectStrip(index); if (config.type === "donut") display(index, event); }
     else if (index >= 0) {
       pinned = true;
-      display(index, true);
+      display(index);
     }
   });
   svg.addEventListener("lostpointercapture", () => { linePointer = null; });
   svg.addEventListener("dragstart", event => event.preventDefault());
   svg.addEventListener("pointerleave", () => {
-    if (!pinned && touchTooltipIndex < 0) display(-1, true);
+    if (!pinned && touchTooltipIndex < 0) display(-1);
   });
   scroller.addEventListener("blur", () => {
     pinned = false;
@@ -1039,7 +995,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     if (event.key === "Escape") {
       pinned = false;
       touchTooltipIndex = -1;
-      display(-1, true);
+      display(-1);
       return;
     }
     if (!layout?.marks.length) return;
@@ -1082,14 +1038,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   render();
   observer.observe(scroller);
   return {
-    update(next: ChartConfig, transition?: { timeHorizon?: boolean }) {
-      const doHorizon = transition?.timeHorizon && next.type === config.type && !options.demoState
-        && ["column", "line", "line-column", "range-column", "heatmap"].includes(next.type)
-        && svg.isConnected && layout;
-      const oldState = doHorizon ? captureHorizon(svg as SVGSVGElement, config) : undefined;
-      const oldMetric = oldState ? (headline?.getAttribute("aria-label") ?? headline?.textContent ?? "") : "";
-      stopHorizonAnimation?.();
-      stopHorizonAnimation = undefined;
+    update(next: ChartConfig, _transition?: { timeHorizon?: boolean }) {
       touchTooltipIndex = -1;
       if (next.type === "strip" || next.type === "donut") {
         const previous = config.type === next.type ? config : undefined;
@@ -1108,13 +1057,6 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       }
       config = next;
       render();
-      if (oldState) {
-        stopHorizonAnimation = animateHorizon(svg as SVGSVGElement, oldState, next, !!reducedMotion?.matches);
-        if (headline && config.headline && oldMetric && oldMetric !== config.headline) {
-          headline.textContent = oldMetric;
-          animateHeadline(headline, config.headline, true);
-        }
-      }
     },
     setLoadingStyle(style: "skeleton" | "spinner") {
       options.loadingStyle = style;
@@ -1124,6 +1066,6 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const data = layout ?? chartLayout(config, 320, options);
       return data.marks.flatMap(mark => mark.values.map(([series, value]) => ({ label: mark.label, series, value })));
     },
-    destroy() { stopHorizonAnimation?.(); observer.disconnect(); host.ownerDocument.removeEventListener("pointerdown", dismissOutside); host.ownerDocument.removeEventListener("keydown", dismissOnEscape); host.ownerDocument.removeEventListener("scroll", dismissTooltip, true); if (retryTimer !== undefined) window.clearTimeout(retryTimer); card.remove(); },
+    destroy() { observer.disconnect(); host.ownerDocument.removeEventListener("pointerdown", dismissOutside); host.ownerDocument.removeEventListener("keydown", dismissOnEscape); host.ownerDocument.removeEventListener("scroll", dismissTooltip, true); if (retryTimer !== undefined) window.clearTimeout(retryTimer); card.remove(); },
   };
 }

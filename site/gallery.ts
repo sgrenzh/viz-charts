@@ -514,36 +514,6 @@ const transitPlot = charts[transitIndex]?.host.querySelector<HTMLElement>(".viz-
 if (transitPlot) new ResizeObserver(() => requestAnimationFrame(syncDonutToTransit)).observe(transitPlot);
 
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
-// Animate cards each time they enter after being outside the viewport.
-if ("IntersectionObserver" in window) {
-  const revealObserver = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      const card = entry.target as HTMLElement;
-      if (card.hidden) { delete card.dataset.revealPending; return; }
-      if (!entry.isIntersecting) {
-        if (card.dataset.revealing) return;
-        card.dataset.revealPending = "true";
-        return;
-      }
-      if (!card.dataset.revealPending) return;
-      delete card.dataset.revealPending;
-      if (reducedMotion.matches) return;
-      card.getAnimations().forEach(animation => animation.cancel());
-      card.dataset.revealing = "true";
-      const animation = card.animate([
-        { opacity: 0, transform: "translateY(10px) scale(0.995)", filter: "blur(5px)" },
-        { opacity: 1, transform: "translateY(0) scale(1)", filter: "blur(0px)" },
-      ], { duration: 650, easing: "cubic-bezier(0.2, 0.75, 0.2, 1)" });
-      animation.onfinish = () => {
-        delete card.dataset.revealing;
-        const bounds = card.getBoundingClientRect();
-        if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) card.dataset.revealPending = "true";
-      };
-    });
-  }, { threshold: 0 });
-  charts.forEach(({ card }) => revealObserver.observe(card));
-}
-
 let activeFamily = "all";
 let filterFrame = 0;
 function matchesFilter(config: ChartConfig) {
@@ -782,6 +752,10 @@ function showPreview(index: number) {
   const originTile = animate ? charts[index].card.getBoundingClientRect() : undefined;
   closeCurrentMenu?.();
   clearDetail();
+  if (opening) {
+    preview.removeAttribute("data-closing");
+    previewContent.inert = false;
+  }
   previewIndex = index;
   syncPreview(index);
   syncPreviewAppearance(index);
