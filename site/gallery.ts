@@ -428,15 +428,15 @@ function viewConfig(index: number): ChartConfig {
 function createChartControls(index: number) {
   const range = createDropdown(`chart-range-${index}`, selected => {
     selectedViews[index] = selected;
-    drawChart(index);
+    drawChart(index, true);
   });
   const homeRange = createDropdown(`home-range-${index}`, selected => {
     selectedViews[index] = selected;
-    drawChart(index);
+    drawChart(index, true);
   });
   const detailRange = createDropdown(`detail-range-${index}`, selected => {
     selectedViews[index] = selected;
-    drawChart(index);
+    drawChart(index, true);
   });
   homeRange.root.classList.add("chart-toolbar");
   detailRange.root.classList.add("chart-toolbar");
@@ -920,17 +920,17 @@ editor.addEventListener("close", () => {
   charts[previewIndex].codeButton.focus({ preventScroll: true });
 });
 
-function drawChart(index: number) {
+function drawChart(index: number, timeHorizon = false) {
   const chart = charts[index];
   chart.card.hidden = !matchesFilter(configs[index]);
   chart.refresh();
   chart.settingsButton.setAttribute("aria-label", `Chart settings for ${configs[index].title}`);
   chart.settingsButton.title = `Chart settings for ${configs[index].title}`;
   const config = previewConfig(index);
-  chart.update(config);
+  chart.update(config, { timeHorizon });
   if (index === transitIndex) requestAnimationFrame(syncDonutToTransit);
   if (previewIndex === index && detail) {
-    detail.update(detailConfig(index));
+    detail.update(detailConfig(index), { timeHorizon });
     syncPreview(index);
   }
 }

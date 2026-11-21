@@ -1,5 +1,6 @@
 import { scaleBand, scaleLinear } from "d3-scale";
 import { arc, area, line } from "d3-shape";
+import { animateHorizon, captureHorizon } from "./horizon-transition.js";
 
 export type ChartConfig = CartesianConfig | RangeColumnConfig | HeatmapConfig | StripConfig | DonutConfig;
 export type LegendPosition = "below" | "right" | "left";
@@ -542,6 +543,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   let headline: HTMLParagraphElement | undefined;
   let previousHeadline = "";
   let headlineAnimation = 0;
+  let stopHorizonAnimation: (() => void) | undefined;
   const reducedMotion = host.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)");
   let stripSelection = initial.type === "strip" || initial.type === "donut" ? initial.selected ?? (initial.type === "donut" ? 0 : -1) : -1;
   let layout: Layout;
@@ -1080,7 +1082,13 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   render();
   observer.observe(scroller);
   return {
-    update(next: ChartConfig) {
+    update(next: ChartConfig, transition?: { timeHorizon?: boolean }) {
+      const doHorizon = transition?.timeHorizon && next.type === config.type && !options.demoState
+        && ["column", "line", "line-column", "range-column", "heatmap"].includes(next.type)
+        && svg.isConnected && layout;
+      const oldState = doHorizon ? captureHorizon(svg, config) : undefined;
+      stopHorizonAnimation?.();
+      stopHorizonAnimation = undefined;
       touchTooltipIndex = -1;
       if (next.type === "strip" || next.type === "donut") {
         const previous = config.type === next.type ? config : undefined;
@@ -1099,6 +1107,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       }
       config = next;
       render();
+      if (oldState) stopHorizonAnimation = animateHorizon(svg, oldState, next, !!reducedMotion?.matches);
     },
     setLoadingStyle(style: "skeleton" | "spinner") {
       options.loadingStyle = style;
@@ -1108,6 +1117,6 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const data = layout ?? chartLayout(config, 320, options);
       return data.marks.flatMap(mark => mark.values.map(([series, value]) => ({ label: mark.label, series, value })));
     },
-    destroy() { observer.disconnect(); host.ownerDocument.removeEventListener("pointerdown", dismissOutside); host.ownerDocument.removeEventListener("keydown", dismissOnEscape); host.ownerDocument.removeEventListener("scroll", dismissTooltip, true); if (retryTimer !== undefined) window.clearTimeout(retryTimer); card.remove(); },
+    destroy() { stopHorizonAnimation?.(); observer.disconnect(); host.ownerDocument.removeEventListener("pointerdown", dismissOutside); host.ownerDocument.removeEventListener("keydown", dismissOnEscape); host.ownerDocument.removeEventListener("scroll", dismissTooltip, true); if (retryTimer !== undefined) window.clearTimeout(retryTimer); card.remove(); },
   };
 }

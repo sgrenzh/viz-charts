@@ -83,7 +83,9 @@ export function animateHorizon(
   const priorIndex = (index: number) => oldByLabel.get(nextLabels[index]) ??
     Math.max(0, Math.min(previous.labels.length - 1, index - (nextLabels.length - previous.labels.length)));
   const movements: ((t: number) => void)[] = [];
+  const faded = new Set<SVGElement>();
   const opacity = (node: SVGElement, start: number, stagger = 0) => {
+    faded.add(node);
     movements.push(t => { node.style.opacity = String(interp(start, 1, Math.max(0, Math.min(1, (t - stagger) / (1 - stagger))))); });
   };
   const tweenRect = (node: SVGRectElement, from: RectGeometry, to: RectGeometry) => {
@@ -118,7 +120,7 @@ export function animateHorizon(
         const p = begin[i];
         return `${i ? "L" : "M"}${interp(p.x, point.x, t).toFixed(2)},${interp(p.y, point.y, t).toFixed(2)}`;
       }).join(" ");
-      node.setAttribute("d", d);
+      node.setAttribute("d", node.getAttribute("fill") !== "none" && original.trimEnd().endsWith("Z") ? d + " Z" : d);
     });
   };
   plottedLines(svg).forEach((node, i) => tweenPath(node, previous.lines[i]?.samples, 96));
@@ -162,9 +164,7 @@ export function animateHorizon(
     movements.forEach(move => move(t));
     if (t < 1) frame = win.requestAnimationFrame(step);
     else {
-      svg.querySelectorAll<SVGElement>("[style]").forEach(node => {
-        if (node.style.opacity === "1") node.style.removeProperty("opacity");
-      });
+      faded.forEach(node => node.style.removeProperty("opacity"));
     }
   };
   // Render the first frame before the next paint, including Firefox.
