@@ -956,10 +956,11 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const x = (event.clientX - bounds.left) * layout.width / (bounds.width || layout.width);
       const y = (event.clientY - bounds.top) * layout.height / (bounds.height || layout.height);
       if (x < 0 || x > layout.width || y < 0 || y > layout.height || !layout.shapes.length) return -1;
-      const first = layout.shapes[0].attrs;
-      const step = layout.shapes.length > 1 ? Number(layout.shapes[1].attrs.x) - Number(first.x) : layout.width;
-      const position = Math.max(0, Math.min(layout.shapes.length - 1, Math.round((x - Number(first.x) - Number(first.width) / 2) / step)));
-      const index = layout.shapes[position].attrs["data-strip-index"];
+      const segments = layout.shapes.filter(shape => shape.attrs.class !== "viz-strip-hit");
+      const first = segments[0].attrs;
+      const step = segments.length > 1 ? Number(segments[1].attrs.x) - Number(first.x) : layout.width;
+      const position = Math.max(0, Math.min(segments.length - 1, Math.round((x - Number(first.x) - Number(first.width) / 2) / step)));
+      const index = segments[position].attrs["data-strip-index"];
       return index === undefined ? -1 : Number(index);
     }
     if (config.type === "strip" || config.type === "donut") {
