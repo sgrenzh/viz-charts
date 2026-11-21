@@ -1087,6 +1087,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
         && ["column", "line", "line-column", "range-column", "heatmap"].includes(next.type)
         && svg.isConnected && layout;
       const oldState = doHorizon ? captureHorizon(svg as SVGSVGElement, config) : undefined;
+      const oldMetric = oldState ? (headline?.getAttribute("aria-label") ?? headline?.textContent ?? "") : "";
       stopHorizonAnimation?.();
       stopHorizonAnimation = undefined;
       touchTooltipIndex = -1;
@@ -1107,7 +1108,13 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       }
       config = next;
       render();
-      if (oldState) stopHorizonAnimation = animateHorizon(svg as SVGSVGElement, oldState, next, !!reducedMotion?.matches);
+      if (oldState) {
+        stopHorizonAnimation = animateHorizon(svg as SVGSVGElement, oldState, next, !!reducedMotion?.matches);
+        if (headline && config.headline && oldMetric && oldMetric !== config.headline) {
+          headline.textContent = oldMetric;
+          animateHeadline(headline, config.headline, true);
+        }
+      }
     },
     setLoadingStyle(style: "skeleton" | "spinner") {
       options.loadingStyle = style;
