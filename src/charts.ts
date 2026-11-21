@@ -1086,7 +1086,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const doHorizon = transition?.timeHorizon && next.type === config.type && !options.demoState
         && ["column", "line", "line-column", "range-column", "heatmap"].includes(next.type)
         && svg.isConnected && layout;
-      const oldState = doHorizon ? captureHorizon(svg, config) : undefined;
+      const oldState = doHorizon ? captureHorizon(svg as SVGSVGElement, config) : undefined;
       stopHorizonAnimation?.();
       stopHorizonAnimation = undefined;
       touchTooltipIndex = -1;
@@ -1107,7 +1107,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       }
       config = next;
       render();
-      if (oldState) stopHorizonAnimation = animateHorizon(svg, oldState, next, !!reducedMotion?.matches);
+      if (oldState) stopHorizonAnimation = animateHorizon(svg as SVGSVGElement, oldState, next, !!reducedMotion?.matches);
     },
     setLoadingStyle(style: "skeleton" | "spinner") {
       options.loadingStyle = style;
