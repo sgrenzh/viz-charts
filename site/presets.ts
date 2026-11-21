@@ -3,8 +3,9 @@ import type { ChartConfig, ChartOptions } from "../src/charts.js";
 const range = (size: number, map: (i: number) => number) => Array.from({ length: size }, (_, i) => map(i));
 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
 const date = (i: number) => new Date(Date.UTC(2024, 7, 19 + i));
+export const formatDay = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" }).format;
 const labels = (size: number, resolution = 1) => Array.from({ length: size }, (_, i) =>
-  date(Math.floor(i / resolution)).toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" })
+  formatDay(date(Math.floor(i / resolution)))
     + (resolution > 1 ? ` ${String((i % resolution) * 24 / resolution).padStart(2, "0")}:00` : ""));
 const noise = (i: number) => ((i * 37 + i * i * 11) % 101) / 100;
 const created = range(30, i => i < 6 ? [53, 58, 37, 65, 65, 25][i] : 12 + Math.round(noise(i) * 16));
@@ -40,7 +41,7 @@ export const presets: { config: ChartConfig; layout?: "wide" | "calendar"; previ
   { previousTitle: "Contract types", config: { version: 1, type: "strip", title: "Library collection mix", period: "By item count", height: 232, items: contractItems, selected: 3, legendPosition: "below" } },
   { layout: "wide", previousTitle: "Transaction count", config: { version: 1, type: "column", title: "Transit boardings", period: "24 hours", height: 264, labels: labels(168, 24), series: [{ name: "Bus", values: range(168, i => Math.round(20_000 + 38_000 * noise(i) + 35_000 * Math.max(0, Math.sin(i * 0.26)))) }, { name: "Rail", values: range(168, i => Math.round(14_000 + 36_000 * noise(i + 23) + 30_000 * Math.max(0, Math.sin(i * 0.23 + 1)))) }], yAxis: { format: "compact" }, stacked: true, barWidth: 4, barRadius: 2 } },
   { previousTitle: "Validators per election", config: { version: 1, type: "column", title: "Support requests per shift", period: "1 week", height: 264, labels: labels(40, 6), series: [{ name: "Requests", values: range(40, i => 175 + Math.floor(noise(i) * 182)) }], barStyle: "cap", barRadius: 2 } },
-  { previousTitle: "Hourly temperature range", config: { version: 1, type: "range-column", title: "Temperature range", period: "24 hours", height: 264, labels: Array.from({ length: 168 }, (_, i) => `${date(Math.floor(i / 24)).toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" })} ${String(i % 24).padStart(2, "0")}:00`), ranges: Array.from({ length: 168 }, (_, i) => { const center = 9 + Math.round(noise(i * 7 + 11) * 14) + Math.round(noise(Math.floor(i / 24) * 13 + 8) * 10) - 5; return { low: center - 1 - Math.floor(noise(i * 3 + 17) * 8), high: center + 1 + Math.floor(noise(i * 5 + 71) * 8) }; }), xAxis: { ticks: 6 }, yAxis: { show: false }, grid: false, showTracks: true } },
+  { previousTitle: "Hourly temperature range", config: { version: 1, type: "range-column", title: "Temperature range", period: "24 hours", height: 264, labels: Array.from({ length: 168 }, (_, i) => `${formatDay(date(Math.floor(i / 24)))} ${String(i % 24).padStart(2, "0")}:00`), ranges: Array.from({ length: 168 }, (_, i) => { const center = 9 + Math.round(noise(i * 7 + 11) * 14) + Math.round(noise(Math.floor(i / 24) * 13 + 8) * 10) - 5; return { low: center - 1 - Math.floor(noise(i * 3 + 17) * 8), high: center + 1 + Math.floor(noise(i * 5 + 71) * 8) }; }), xAxis: { ticks: 6 }, yAxis: { show: false }, grid: false, showTracks: true } },
   { previousTitle: "Museum ticket types", config: { version: 1, type: "donut", title: "Museum visits by ticket type", height: 232, legendPosition: "below", selected: 0, items: [
     { label: "Adult", value: 5400 }, { label: "Concession", value: 2700 }, { label: "Child", value: 1900 }, { label: "Member", value: 800 },
   ] } },

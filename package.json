@@ -5,6 +5,7 @@
   "files": [
     "lib/charts.js",
     "lib/charts.d.ts",
+    "lib/horizon-motion.js",
     "src/charts.css",
     "src/typography.css",
     "src/fonts/AlloVariable.woff2",

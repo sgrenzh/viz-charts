@@ -1,5 +1,6 @@
 import { scaleBand, scaleLinear } from "d3-scale";
 import { arc, area, line } from "d3-shape";
+import { captureHorizon, playHorizon, shouldAnimateHorizon } from "./horizon-motion.js";
 
 export type ChartConfig = CartesianConfig | RangeColumnConfig | HeatmapConfig | StripConfig | DonutConfig;
 export type LegendPosition = "below" | "right" | "left";
@@ -102,10 +103,10 @@ interface Mark {
   label: string;
   values: [string, string][];
   colors: string[];
-  points?: { y: number; color: string }[];
+  points?: { x: number; y: number; series: number; color: string }[];
 }
 interface LineFill { path: string; color: string; top: number; bottom: number }
-interface Layout { width: number; height: number; shapes: Shape[]; marks: Mark[]; clip?: Attrs; lineFill?: LineFill; lineBounds?: { top: number; bottom: number } }
+interface Layout { width: number; height: number; shapes: Shape[]; marks: Mark[]; clip?: Attrs; lineFill?: LineFill; lineBounds?: { top: number; bottom: number; right: number } }
 export interface ChartOptions {
   formatValue?: (value: number, axis?: AxisConfig) => string;
   formatHeadline?: (value: number) => string;
@@ -145,15 +146,24 @@ function label(x: number, y: number, text: string, align = "start") {
   return shape("text", { x, y, fill: muted, "text-anchor": align, "font-size": axisLabelSize, class: "viz-axis-label" }, text);
 }
 
+const numberFormats = new Map<string, Intl.NumberFormat>();
+
 function format(value: number, axis?: AxisConfig) {
+  const kind = axis?.format ?? "number";
   const digits = axis?.digits;
-  return new Intl.NumberFormat("en", {
-    notation: axis?.format === "compact" ? "compact" : "standard",
-    style: axis?.format === "currency" ? "currency" : axis?.format === "percent" ? "percent" : "decimal",
-    currency: "USD",
-    maximumFractionDigits: digits ?? (axis?.format === "compact" ? 1 : 3),
-    minimumFractionDigits: digits,
-  }).format(value);
+  const key = kind + ":" + (digits ?? "default");
+  let formatter = numberFormats.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat("en", {
+      notation: kind === "compact" ? "compact" : "standard",
+      style: kind === "currency" ? "currency" : kind === "percent" ? "percent" : "decimal",
+      currency: "USD",
+      maximumFractionDigits: digits ?? (kind === "compact" ? 1 : 3),
+      minimumFractionDigits: digits,
+    });
+    numberFormats.set(key, formatter);
+  }
+  return formatter.format(value);
 }
 
 function estimateAxisLabelWidth(text: string) {
@@ -262,14 +272,14 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
         const barHeight = Math.abs(y(base) - endY);
         const x = center(i) - w * groups / 2 + (stack ? 0 : s * w);
         const fill = getColor(series, s);
-        shapes.push(shape("rect", { x, y: barY, width: w, height: barHeight, rx: stack ? 0 : subtleRadius(w, config.barRadius ?? 2), fill, "data-bar-index": i, ...(stack ? { "data-stack-index": i } : {}), opacity: config.barStyle === "cap" ? "var(--viz-page-cap-opacity, 0.12)" : 1 }));
+        shapes.push(shape("rect", { x, y: barY, width: w, height: barHeight, rx: stack ? 0 : subtleRadius(w, config.barRadius ?? 2), fill, "data-bar-index": i, "data-series": s, "data-baseline-side": side, ...(stack ? { "data-stack-index": i } : {}), opacity: config.barStyle === "cap" ? "var(--viz-page-cap-opacity, 0.12)" : 1 }));
         if (config.barStyle === "cap" && barHeight) {
           const cap = Math.min(2, barHeight);
           const r = Math.min(cap, subtleRadius(w, cap));
           const edge = v >= 0 ? barY : barY + barHeight;
           const inside = edge + (v >= 0 ? cap : -cap);
           const d = `M${x},${inside} Q${x},${edge} ${x + r},${edge} H${x + w - r} Q${x + w},${edge} ${x + w},${inside} Z`;
-          shapes.push(shape("path", { d, fill, "data-bar-index": i, "data-bar-cap": "", ...(stack ? { "data-stack-index": i } : {}) }));
+          shapes.push(shape("path", { d, fill, "data-bar-index": i, "data-bar-cap": "", "data-series": s, "data-cap-side": v < 0 ? "bottom" : "top", ...(stack ? { "data-stack-index": i } : {}) }));
         }
       });
     });
@@ -288,7 +298,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
       const plotted = series.values.slice(0, indexes.length);
       const d = line<number | null>().defined(v => v !== null).x((_, j) => center(j)).y(v => y(v ?? 0))(plotted);
       const stroke = getColor(series, i);
-      if (d) shapes.push(shape("path", { d, fill: "none", stroke, "stroke-width": 1.5, "stroke-linejoin": "round" }));
+      if (d) shapes.push(shape("path", { d, fill: "none", stroke, "stroke-width": 1.5, "stroke-linejoin": "round", "data-line-series": i }));
       if (config.gradientFill && i === 0) {
         const path = area<number | null>().defined(v => v !== null).x((_, j) => center(j)).y0(lineBottom).y1(v => y(v ?? 0))(plotted);
         if (path) lineFill = { path, color: stroke, top, bottom: lineBottom };
@@ -300,7 +310,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
   const marks = config.labels.map((name, i): Mark => {
     const points = column ? undefined : main.flatMap((series, j) => {
       const value = series.values[i];
-      return value == null ? [] : [{ y: y(value), color: colors[j] }];
+      return value == null ? [] : [{ x: center(i), y: y(value), series: j, color: colors[j] }];
     });
     return {
       label: name,
@@ -315,10 +325,12 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
   });
   return {
     width, height, shapes, marks,
-    ...(column ? {} : { lineBounds: { top, bottom: lineBottom } }),
+    ...(column ? {} : { lineBounds: { top, bottom: lineBottom, right } }),
     ...(lineFill ? { lineFill } : {}),
   };
 }
+
+const monthLabel = new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" });
 
 function heatmap(config: HeatmapConfig, available: number, formatValue: typeof format): Layout {
   const size = config.cellSize ?? 24;
@@ -343,10 +355,12 @@ function heatmap(config: HeatmapConfig, available: number, formatValue: typeof f
     const level = value === undefined ? -1 : thresholds.filter(t => value >= t).length;
     const fill = level < 0 ? rules : palette[Math.min(level, palette.length - 1)] ?? color;
     shapes.push(shape("rect", { x, y, width: size, height: size, rx: config.radius ?? 4, fill, ...(value !== undefined ? { "data-heat-index": marks.length } : {}) }));
-    const current = date.toLocaleDateString("en", { month: "short", timeZone: "UTC" });
-    if (current !== month && (i % 7 === 0 || i === 0)) {
-      shapes.push(label(x, stride * 7 + 36, current));
-      month = current;
+    if (i % 7 === 0) {
+      const current = monthLabel.format(date);
+      if (current !== month) {
+        shapes.push(label(x, stride * 7 + 36, current));
+        month = current;
+      }
     }
     if (value !== undefined) marks.push({
       x: x + size / 2, y: y + size / 2, label: date.toISOString().slice(0, 10),
@@ -544,6 +558,13 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   let retryTimer: number | undefined;
   let retrying = false;
   let headline: HTMLParagraphElement | undefined;
+  let stopMotion: (() => void) | undefined;
+  const motionPreference = host.ownerDocument.defaultView?.matchMedia("(prefers-reduced-motion: reduce)");
+  const settleMotion = () => {
+    stopMotion?.();
+    stopMotion = undefined;
+  };
+  motionPreference?.addEventListener("change", settleMotion);
   let stripSelection = initial.type === "strip" || initial.type === "donut" ? initial.selected ?? (initial.type === "donut" ? 0 : -1) : -1;
   let layout: Layout;
   let stripRows: HTMLButtonElement[] = [];
@@ -585,9 +606,11 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   }
 
   function display(index: number, pointer?: PointerEvent, anchor?: HTMLElement) {
+    if (index >= 0) settleMotion();
+    const hadHighlight = active >= 0;
     active = index;
     const mark = layout?.marks[index];
-    if (config.type === "column" || config.type === "line-column" || config.type === "range-column") {
+    if ((mark || hadHighlight) && (config.type === "column" || config.type === "line-column" || config.type === "range-column")) {
       const barConfig = config;
       svg.querySelectorAll<SVGElement>("[data-bar-index]").forEach(bar => {
         if (bar.closest("defs")) return;
@@ -598,7 +621,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
           : mark && selected && cappedBody ? "1" : "";
       });
     }
-    if (config.type === "heatmap") svg.querySelectorAll<SVGElement>("[data-heat-index]").forEach(cell => {
+    if ((mark || hadHighlight) && config.type === "heatmap") svg.querySelectorAll<SVGElement>("[data-heat-index]").forEach(cell => {
       cell.style.opacity = mark && Number(cell.getAttribute("data-heat-index")) !== index ? "0.3" : "";
     });
     displayHeadline(index, mark);
@@ -650,6 +673,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const nextWidth = Math.floor(scroller.clientWidth);
     const minimumWidth = config.type === "strip" ? 1 : 96;
     if (nextWidth < minimumWidth || width === nextWidth) return;
+    settleMotion();
     width = nextWidth;
     const keepLineSelection = pinned && isLine();
     pinned = keepLineSelection;
@@ -679,20 +703,32 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       group.append(...marks);
       svg.replaceChildren(clip, group);
     } else {
-      svg.replaceChildren(...marks);
+      const surface = svg.ownerDocument.createDocumentFragment();
+      surface.append(...marks);
       const defs = svgElement("defs", {});
-      if (config.type === "column" && config.stacked && (config.barRadius ?? 2) > 0) {
-        for (let i = 0; i < config.labels.length; i++) {
-          const segments = marks.filter(node => node.getAttribute("data-stack-index") === String(i));
+      if (config.type === "column" && config.stacked) {
+        const buckets = new Map<string, SVGElement[]>();
+        for (const mark of marks) {
+          const index = mark.getAttribute("data-stack-index");
+          if (index === null) continue;
+          const bucket = buckets.get(index) ?? [];
+          bucket.push(mark);
+          buckets.set(index, bucket);
+        }
+        for (const [i, segments] of buckets) {
+          const group = svgElement("g", { "data-horizon-stack": i });
+          segments[0].before(group);
+          group.append(...segments);
+          const radius = config.barRadius ?? 2;
           const bars = segments.filter(node => node.localName === "rect" && Number(node.getAttribute("height")) > 0);
-          if (!bars.length) continue;
+          if (!bars.length || radius <= 0) continue;
           const top = Math.min(...bars.map(bar => Number(bar.getAttribute("y"))));
           const bottom = Math.max(...bars.map(bar => Number(bar.getAttribute("y")) + Number(bar.getAttribute("height"))));
           const id = `viz-stack-clip-${chartId}-${i}`;
           const clip = svgElement("clipPath", { id, clipPathUnits: "userSpaceOnUse" });
-          clip.append(svgElement("rect", { x: bars[0].getAttribute("x")!, y: top, width: bars[0].getAttribute("width")!, height: bottom - top, rx: subtleRadius(Number(bars[0].getAttribute("width")), config.barRadius ?? 2) }));
+          clip.append(svgElement("rect", { x: bars[0].getAttribute("x")!, y: top, width: bars[0].getAttribute("width")!, height: bottom - top, rx: subtleRadius(Number(bars[0].getAttribute("width")), radius) }));
           defs.append(clip);
-          segments.forEach(segment => segment.setAttribute("clip-path", `url(#${id})`));
+          group.setAttribute("clip-path", `url(#${id})`);
         }
       }
       if (layout.lineFill) {
@@ -703,7 +739,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
           svgElement("stop", { offset: 1, "stop-color": color, "stop-opacity": 0 }),
         );
         defs.append(gradient);
-        svg.prepend(svgElement("path", { d: path, fill: `url(#${gradientId})`, "aria-hidden": "true", "pointer-events": "none" }));
+        surface.prepend(svgElement("path", { d: path, fill: `url(#${gradientId})`, "data-line-area": "", "aria-hidden": "true", "pointer-events": "none" }));
       }
       const gridLines = marks.filter(node => node.localName === "line");
       if (gridLines.length) {
@@ -731,10 +767,12 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
           grid.append(...gridLines);
         }
       }
-      if (defs.hasChildNodes()) svg.prepend(defs);
-      if (isLine()) svg.append(lineMarkers);
+      if (defs.hasChildNodes()) surface.prepend(defs);
+      if (isLine()) surface.append(lineMarkers);
+      svg.replaceChildren(surface);
     }
-    display(keepLineSelection ? active : -1);
+    if (!keepLineSelection) active = -1;
+    display(active);
   }
 
   function selectStrip(index: number) {
@@ -908,6 +946,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     draw();
   }
   function closest(event: PointerEvent) {
+    settleMotion();
     if (!layout) return -1;
     if (config.type === "strip" && config.segmented) {
       const bounds = svg.getBoundingClientRect();
@@ -986,6 +1025,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   svg.addEventListener("pointerleave", () => {
     if (!pinned && touchTooltipIndex < 0) display(-1);
   });
+  scroller.addEventListener("wheel", settleMotion, { passive: true });
   scroller.addEventListener("blur", () => {
     pinned = false;
     touchTooltipIndex = -1;
@@ -993,6 +1033,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   });
   scroller.addEventListener("keydown", event => {
     if (event.key === "Escape") {
+      settleMotion();
       pinned = false;
       touchTooltipIndex = -1;
       display(-1);
@@ -1038,7 +1079,13 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
   render();
   observer.observe(scroller);
   return {
-    update(next: ChartConfig, _transition?: { timeHorizon?: boolean }) {
+    update(next: ChartConfig, transition?: { timeHorizon?: boolean }) {
+      const animate = transition?.timeHorizon && !options.demoState && layout &&
+        typeof svg.animate === "function" && shouldAnimateHorizon(config, next) &&
+        svg.isConnected && scroller.clientWidth > 0;
+      const before = animate ? captureHorizon(svg as SVGSVGElement, layout) : undefined;
+      const oldMetric = config.headline ?? "";
+      settleMotion();
       touchTooltipIndex = -1;
       if (next.type === "strip" || next.type === "donut") {
         const previous = config.type === next.type ? config : undefined;
@@ -1057,6 +1104,10 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       }
       config = next;
       render();
+      if (before && width > 0) {
+        stopMotion = playHorizon(before, svg as SVGSVGElement, config, layout, headline, oldMetric,
+          !!motionPreference?.matches, () => { stopMotion = undefined; });
+      }
     },
     setLoadingStyle(style: "skeleton" | "spinner") {
       options.loadingStyle = style;
@@ -1066,6 +1117,6 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       const data = layout ?? chartLayout(config, 320, options);
       return data.marks.flatMap(mark => mark.values.map(([series, value]) => ({ label: mark.label, series, value })));
     },
-    destroy() { observer.disconnect(); host.ownerDocument.removeEventListener("pointerdown", dismissOutside); host.ownerDocument.removeEventListener("keydown", dismissOnEscape); host.ownerDocument.removeEventListener("scroll", dismissTooltip, true); if (retryTimer !== undefined) window.clearTimeout(retryTimer); card.remove(); },
+    destroy() { settleMotion(); motionPreference?.removeEventListener("change", settleMotion); observer.disconnect(); host.ownerDocument.removeEventListener("pointerdown", dismissOutside); host.ownerDocument.removeEventListener("keydown", dismissOnEscape); host.ownerDocument.removeEventListener("scroll", dismissTooltip, true); if (retryTimer !== undefined) window.clearTimeout(retryTimer); card.remove(); },
   };
 }

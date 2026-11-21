@@ -1,5 +1,5 @@
 import { mountChart, type ChartConfig, type LegendPosition } from "../src/charts.js";
-import { presets } from "./presets.js";
+import { formatDay, presets } from "./presets.js";
 
 const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const gallery = byId("gallery");
@@ -128,10 +128,10 @@ const stripViews: View[] = [{ label: "By item count" }, { label: "By category" }
 const configs = presets.map(({ config }) => structuredClone(config));
 const transitPresetIndex = presets.findIndex(preset => preset.previousTitle === "Transaction count");
 const selectedViews = presets.map(({ config }, index) => config.type === "strip" || config.type === "donut" || config.type === "range-column" || index === transitPresetIndex ? 0 : viewsByPreset[index].length - 1);
-let closeCurrentMenu: (() => void) | undefined;
+let closeCurrentMenu: ((restoreFocus?: boolean, pointer?: boolean) => void) | undefined;
 let currentMenuRoot: HTMLElement | undefined;
 document.addEventListener("pointerdown", event => {
-  if (currentMenuRoot && !currentMenuRoot.contains(event.target as Node)) closeCurrentMenu?.();
+  if (currentMenuRoot && !currentMenuRoot.contains(event.target as Node)) closeCurrentMenu?.(false, true);
 });
 
 const icons = {
@@ -159,7 +159,7 @@ function button(name: string, iconName: keyof typeof icons) {
   control.append(icon(iconName));
   return control;
 }
-function createDropdown(id: string, onSelect: (index: number) => void) {
+function createDropdown(id: string, onSelect: (index: number, pointer: boolean) => void) {
   const root = document.createElement("div");
   root.className = "dropdown";
   const trigger = button("", "chevron");
@@ -181,6 +181,8 @@ function createDropdown(id: string, onSelect: (index: number) => void) {
   let labels: string[] = [];
   let swatches: string[] | undefined;
   let selected = 0;
+  let motion: Animation | undefined;
+  const isChartRange = () => root.classList.contains("chart-toolbar");
   function refresh(options: string[], index: number, label: string, colors?: string[]) {
     labels = options;
     swatches = colors;
@@ -190,34 +192,84 @@ function createDropdown(id: string, onSelect: (index: number) => void) {
     menu.setAttribute("aria-label", label);
   }
 
-  function place() {
-    if (menu.hidden) return;
+  function place(event?: Event) {
+    if (menu.hidden || (event?.target instanceof Node && menu.contains(event.target))) return;
     const bounds = trigger.getBoundingClientRect();
-    if (root.classList.contains("chart-toolbar")) {
-      menu.style.setProperty("--chart-menu-row-height", `${Math.round(bounds.height)}px`);
-      const scale = 1;
+    const active = menu.children[selected] as HTMLElement | undefined;
+    if (isChartRange() && active) {
+      if (!bounds.width || !bounds.height) return;
+      const scale = bounds.height / (trigger.offsetHeight || bounds.height);
       const style = getComputedStyle(trigger);
+      menu.style.setProperty("--chart-menu-row-height", `${bounds.height}px`);
       menu.style.setProperty("--chart-menu-font-size", `${parseFloat(style.fontSize) * scale}px`);
       menu.style.setProperty("--chart-menu-line-height", `${parseFloat(style.lineHeight) * scale}px`);
+      menu.style.setProperty("--chart-menu-row-padding", `${(parseFloat(style.paddingInlineStart) + parseFloat(style.borderInlineStartWidth)) * scale}px`);
+      menu.style.setProperty("--chart-menu-row-gap", `${parseFloat(style.columnGap) * scale}px`);
+      menu.style.setProperty("--chart-menu-icon-size", `${18 * scale}px`);
+      menu.style.width = `${bounds.width}px`;
+      menu.style.left = `${bounds.left}px`;
+      const above = selected * bounds.height;
+      const below = (menu.childElementCount - selected - 1) * bounds.height;
+      const top = Math.max(Math.min(8, bounds.top), bounds.top - above);
+      const bottom = Math.min(Math.max(window.innerHeight - 8, bounds.bottom), bounds.bottom + below);
+      menu.style.maxHeight = `${bottom - top}px`;
+      menu.style.top = `${top}px`;
+      menu.style.translate = "none";
+      menu.style.transform = "none";
+      // Scroll earlier rows into the clipped portion while keeping the selected
+      // row on its trigger. Correct for the browser's rounded scroll offset.
+      menu.scrollTop = above - (bounds.top - top);
+      const row = active.getBoundingClientRect();
+      const panel = menu.getBoundingClientRect();
+      const sx = bounds.width / row.width;
+      const sy = bounds.height / row.height;
+      if (sx !== 1 || sy !== 1) menu.style.transform = `scale(${sx}, ${sy})`;
+      menu.style.translate = `${bounds.left - panel.left - (row.left - panel.left) * sx}px ${bounds.top - panel.top - (row.top - panel.top) * sy}px`;
+      return;
     }
     menu.style.minWidth = `${Math.min(bounds.width, window.innerWidth - 16)}px`;
-    const active = menu.children[selected] as HTMLElement | undefined;
     const top = bounds.top + (bounds.height - (active?.offsetHeight ?? 0)) / 2 - (active?.offsetTop ?? 0);
     menu.style.left = `${Math.max(8, Math.min(window.innerWidth - menu.offsetWidth - 8, bounds.right - menu.offsetWidth))}px`;
     menu.style.top = `${Math.max(8, Math.min(window.innerHeight - menu.offsetHeight - 8, top))}px`;
   }
-  function close(restoreFocus = false) {
+  function takeOpacity(fallback: number) {
+    const opacity = motion ? Number(getComputedStyle(menu).opacity) : fallback;
+    motion?.cancel();
+    motion = undefined;
+    return opacity;
+  }
+  function fade(from: number, to: number, duration: number, finish?: () => void) {
+    const animation = menu.animate([{ opacity: from }, { opacity: to }], {
+      duration, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "both",
+    });
+    motion = animation;
+    animation.onfinish = () => {
+      if (motion !== animation) return;
+      motion = undefined;
+      animation.cancel();
+      finish?.();
+    };
+  }
+  function close(restoreFocus = false, pointer = false) {
     if (menu.hidden) return;
-    menu.hidePopover?.();
-    menu.hidden = true;
+    const opacity = takeOpacity(1);
+    const canFade = pointer && isChartRange() && menu.matches(":popover-open") && typeof menu.animate === "function";
     trigger.setAttribute("aria-expanded", "false");
+    menu.inert = true;
     window.removeEventListener("resize", place);
     document.removeEventListener("scroll", place, true);
     if (closeCurrentMenu === close) { closeCurrentMenu = undefined; currentMenuRoot = undefined; }
     if (restoreFocus) trigger.focus({ preventScroll: true });
+    const hide = () => {
+      menu.hidePopover?.();
+      menu.hidden = true;
+    };
+    if (canFade && opacity > 0) fade(opacity, 0, reducedMotion.matches ? 75 : 100, hide);
+    else hide();
   }
-  function open() {
+  function open(pointer = false) {
     if (!labels.length) return;
+    const opacity = takeOpacity(0);
     closeCurrentMenu?.();
     menu.replaceChildren(...labels.map((label, index) => {
       const item = document.createElement("button");
@@ -231,29 +283,39 @@ function createDropdown(id: string, onSelect: (index: number) => void) {
         if (swatches[index]) dot.style.background = swatches[index];
         item.append(dot);
       }
-      item.append(document.createTextNode(label));
+      const labelText = document.createElement("span");
+      labelText.className = "dropdown-menu-label";
+      labelText.textContent = label;
+      item.append(labelText);
       if (index === selected) item.append(icon("check"));
-      item.addEventListener("click", () => {
-        close(true);
-        onSelect(index);
+      item.addEventListener("click", event => {
+        close(true, event.detail > 0);
+        onSelect(index, event.detail > 0);
       });
       return item;
     }));
     menu.hidden = false;
+    menu.inert = false;
     menu.showPopover?.();
     trigger.setAttribute("aria-expanded", "true");
     closeCurrentMenu = close;
     currentMenuRoot = root;
     place();
+    if (pointer && isChartRange() && typeof menu.animate === "function") {
+      fade(opacity, 1, reducedMotion.matches ? 100 : 150);
+    }
     (menu.children[selected] as HTMLElement | undefined)?.focus({ preventScroll: true });
     window.addEventListener("resize", place);
     document.addEventListener("scroll", place, true);
   }
-  trigger.addEventListener("click", () => { if (menu.hidden) open(); else close(); });
+  trigger.addEventListener("click", event => {
+    if (trigger.getAttribute("aria-expanded") === "true") close(false, event.detail > 0);
+    else open(event.detail > 0);
+  });
   trigger.addEventListener("keydown", event => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
-      if (menu.hidden) open();
+      if (trigger.getAttribute("aria-expanded") !== "true") open();
     }
   });
   menu.addEventListener("keydown", event => {
@@ -370,7 +432,7 @@ function rawViewConfig(index: number): ChartConfig {
       const bins = Math.ceil(config.labels.length / 1.5);
       const formatTime = (hour: number) => {
         const date = new Date(Date.UTC(2024, 7, 19) + hour * 3_600_000);
-        return `${date.toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" })} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
+        return `${formatDay(date)} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
       };
       const labels = Array.from({ length: bins }, (_, i) => `${formatTime(i * 1.5)} – ${formatTime(Math.min((i + 1) * 1.5, config.labels.length))}`);
       const series = config.series.map(item => ({ ...item, values: labels.map((_, i) => {
@@ -426,18 +488,14 @@ function viewConfig(index: number): ChartConfig {
 }
 
 function createChartControls(index: number) {
-  const range = createDropdown(`chart-range-${index}`, selected => {
+  const selectRange = (selected: number, pointer: boolean) => {
+    if (selectedViews[index] === selected) return;
     selectedViews[index] = selected;
-    drawChart(index, true);
-  });
-  const homeRange = createDropdown(`home-range-${index}`, selected => {
-    selectedViews[index] = selected;
-    drawChart(index, true);
-  });
-  const detailRange = createDropdown(`detail-range-${index}`, selected => {
-    selectedViews[index] = selected;
-    drawChart(index, true);
-  });
+    drawChart(index, pointer);
+  };
+  const range = createDropdown(`chart-range-${index}`, selectRange);
+  const homeRange = createDropdown(`home-range-${index}`, selectRange);
+  const detailRange = createDropdown(`detail-range-${index}`, selectRange);
   homeRange.root.classList.add("chart-toolbar");
   detailRange.root.classList.add("chart-toolbar");
   const codeButton = button("Code", "code");
@@ -901,7 +959,7 @@ function drawChart(index: number, timeHorizon = false) {
   chart.settingsButton.setAttribute("aria-label", `Chart settings for ${configs[index].title}`);
   chart.settingsButton.title = `Chart settings for ${configs[index].title}`;
   const config = previewConfig(index);
-  chart.update(config, { timeHorizon });
+  chart.update(config, { timeHorizon: timeHorizon && previewIndex !== index && !chart.card.hidden });
   if (index === transitIndex) requestAnimationFrame(syncDonutToTransit);
   if (previewIndex === index && detail) {
     detail.update(detailConfig(index), { timeHorizon });
