@@ -200,7 +200,7 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
   const showY = config.yAxis?.show !== false;
   const left = 0;
   const top = 12;
-  const bottom = height - (showX ? (config.xAxis?.label ? 48 : 32) : showY ? 12 : 0);
+  const bottom = height - (showX ? (config.xAxis?.label ? 36 : 20) : showY ? 12 : 0);
   const combo = config.type === "line-column";
   const showVolume = combo && config.showVolume !== false;
   const column = config.type === "column";
@@ -250,7 +250,8 @@ function cartesian(config: CartesianConfig, width: number, formatValue: typeof f
     const start = indexes.map(() => ({ pos: 0, neg: 0 }));
     main.forEach((series, s) => {
       const groups = stack ? 1 : main.length;
-      const w = Math.min(config.barWidth ?? (indexes.length === 1 ? Math.min(64, width / 7) : Infinity), band.bandwidth() / groups);
+      const responsiveWidth = stack ? Math.max(config.barWidth ?? 4, Math.min(12, width / 110)) : config.barWidth ?? (indexes.length === 1 ? Math.min(64, width / 7) : Infinity);
+      const w = Math.min(responsiveWidth, band.bandwidth() / groups);
       series.values.slice(0, indexes.length).forEach((v, i) => {
         if (v == null) return;
         const side = v >= 0 ? "pos" : "neg";
@@ -394,6 +395,10 @@ function strip(config: StripConfig, width: number, formatValue: typeof format): 
       shapes.push(shape("rect", { x: n * step, y: 0, width: barWidth, height, rx: Math.min(2, barWidth / 2, height / 2),
         fill: index < 0 ? "var(--viz-grid)" : segmentFill(config.items[index], index),
         ...(index >= 0 ? { class: "viz-strip-segment", "data-strip-index": index } : {}) }));
+      // A transparent full-step hit box includes the visual gap between segments.
+      if (index >= 0) shapes.push(shape("rect", { x: Math.max(0, n * step - gap / 2), y: 0,
+        width: Math.min(width - Math.max(0, n * step - gap / 2), step), height, fill: "transparent",
+        class: "viz-strip-hit", "data-strip-index": index }));
     }
     let start = 0;
     const marks = config.items.map((item, i) => {
@@ -437,7 +442,7 @@ function rangeColumn(config: RangeColumnConfig, width: number, formatValue: type
   const showX = config.xAxis?.show !== false;
   const showY = config.yAxis?.show !== false;
   const top = 12;
-  const bottom = height - (showX ? (config.xAxis?.label ? 48 : 32) : showY ? 12 : 0);
+  const bottom = height - (showX ? (config.xAxis?.label ? 36 : 20) : showY ? 12 : 0);
   const values = config.ranges.flatMap(range => range ? [range.low, range.high] : []);
   const low = values.length ? Math.min(...values) : 0;
   const high = values.length ? Math.max(...values) : 1;
@@ -631,9 +636,9 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
       cell.style.opacity = mark && Number(cell.getAttribute("data-heat-index")) !== index ? "0.3" : "";
     });
     displayHeadline(index, mark, settleHeadline);
-    const points = pinned && "series" in config && config.marker !== false ? mark?.points ?? [] : [];
-    const guide = (config.type === "line" || config.type === "line-column") && config.xAxis?.show !== false && points.length && mark
-      ? [svgElement("line", { x1: mark.x, x2: mark.x, y1: 12, y2: layout.height - 32,
+    const points = isLine() && "series" in config && config.marker !== false ? mark?.points ?? [] : [];
+    const guide = isLine() && pinned && config.xAxis?.show !== false && points.length && mark
+      ? [svgElement("line", { x1: mark.x, x2: mark.x, y1: 12, y2: layout.height - (config.xAxis?.label ? 36 : 20) - (config.type === "line-column" && config.showVolume !== false ? 44 : 0),
         stroke: "var(--viz-muted)", "stroke-width": 1, "stroke-dasharray": "4 4" })]
       : [];
     lineMarkers.replaceChildren(...guide, ...points.map(point => svgElement("circle", {
@@ -979,6 +984,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     const index = closest(event);
     if (index < 0) return;
     linePointer = event.pointerId;
+    event.preventDefault();
     svg.setPointerCapture(event.pointerId);
   });
   svg.addEventListener("pointermove", event => {
@@ -986,7 +992,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     if (touchTooltipIndex >= 0 && !dragging) return;
     if (!dragging && (pinned || event.pointerType === "touch")) return;
     const index = closest(event);
-    if (isLine() && index === active && (!dragging || pinned)) return;
+    if (isLine() && index === active && !dragging) return;
     if (dragging) pinned = true;
     if (config.type === "donut" && index >= 0 && index !== stripSelection) selectStrip(index);
     display(index, false, config.type === "donut" || (config.type === "strip" && config.segmented) ? event : undefined);
@@ -1017,6 +1023,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     }
   });
   svg.addEventListener("lostpointercapture", () => { linePointer = null; });
+  svg.addEventListener("dragstart", event => event.preventDefault());
   svg.addEventListener("pointerleave", () => {
     if (!pinned && touchTooltipIndex < 0) display(-1, true);
   });

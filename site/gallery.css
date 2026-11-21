@@ -382,7 +382,10 @@ dialog::backdrop { background: #0009; }
   text-align: left;
 }
 .dropdown-menu button:is(:hover, :focus-visible) { background: var(--dropdown-selection); outline-offset: -3px; }
+.dropdown-menu button { box-sizing: border-box; flex: none; transform: none !important; transition: background-color 160ms ease, color 160ms ease; }
+.dropdown-menu button:active { transform: none !important; }
 .dropdown-menu button[aria-checked="true"]:focus-visible:not(:hover) { background: transparent; }
+.dropdown-menu button:focus:not(:focus-visible) { outline: none; }
 .dropdown-menu svg { width: 18px; height: 18px; flex: none; }
 .dropdown-color-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; }
 
@@ -415,6 +418,15 @@ dialog::backdrop { background: #0009; }
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: min(100%, 1600px, max(880px, calc(var(--preview-chart-width, 0px) * 2 + 64px + var(--preview-spacing))));
   }
+}
+@media (min-width: 900px) and (min-height: 540px) {
+  .preview-content {
+    --preview-square: min(calc((100vw - 3 * var(--preview-spacing)) / 2), calc(100dvh - 2 * var(--preview-spacing)), 760px);
+    grid-template-columns: repeat(2, minmax(0, var(--preview-square)));
+    width: calc(2 * var(--preview-square) + var(--preview-spacing));
+    align-items: stretch;
+  }
+  .preview-stage, .preview-options { block-size: var(--preview-square); min-block-size: 0; }
 }
 @media (min-width: 1020px) {
   .gallery { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -451,13 +463,15 @@ dialog::backdrop { background: #0009; }
 }
 .chart-toolbar .dropdown-trigger:hover { background: var(--viz-surface); }
 .chart-toolbar .dropdown-trigger svg { color: var(--viz-muted); }
-.chart-toolbar .dropdown-menu { border-radius: 8px; box-shadow: 0 2px 8px #0001; }
+.chart-toolbar .dropdown-menu { border-radius: 8px; box-shadow: 0 2px 8px #0001; overflow: hidden auto; }
+.chart-toolbar .dropdown-menu button { border-radius: 0; margin: 0; }
+.chart-toolbar .dropdown-menu button:last-child { border-radius: 0 0 7px 7px; }
 .chart-nav { transition: opacity 180ms ease; }
 body:has(.preview-dialog[open]) .chart-nav { opacity: 0; }
 .series-colors { display: grid; gap: 10px; }
 .series-colors .dropdown { max-width: 60%; }
 @media (prefers-reduced-motion: reduce) { .chart-nav { transition: none; transform: none; } }
-.chart-toolbar .dropdown-menu button { height: var(--chart-menu-row-height, 40px); min-height: 0; }
+.chart-toolbar .dropdown-menu button { height: var(--chart-menu-row-height, 40px); min-height: var(--chart-menu-row-height, 40px); padding-block: 0; }
 .chart-toolbar .dropdown-menu button { font-size: var(--chart-menu-font-size, var(--viz-type-label-size)); line-height: var(--chart-menu-line-height, var(--viz-type-label-line)); }
 .chart-theme .dropdown-trigger:focus-visible { outline-color: var(--viz-page-ink); }
 .preview-actions .icon-button svg { stroke-width: 1.5; }

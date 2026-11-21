@@ -194,9 +194,8 @@ function createDropdown(id: string, onSelect: (index: number) => void) {
     if (menu.hidden) return;
     const bounds = trigger.getBoundingClientRect();
     if (root.classList.contains("chart-toolbar")) {
-      menu.style.setProperty("--chart-menu-row-height", `${bounds.height}px`);
-      const rootBounds = root.getBoundingClientRect();
-      const scale = rootBounds.height / (root.offsetHeight || rootBounds.height);
+      menu.style.setProperty("--chart-menu-row-height", `${Math.round(bounds.height)}px`);
+      const scale = 1;
       const style = getComputedStyle(trigger);
       menu.style.setProperty("--chart-menu-font-size", `${parseFloat(style.fontSize) * scale}px`);
       menu.style.setProperty("--chart-menu-line-height", `${parseFloat(style.lineHeight) * scale}px`);
@@ -246,7 +245,7 @@ function createDropdown(id: string, onSelect: (index: number) => void) {
     closeCurrentMenu = close;
     currentMenuRoot = root;
     place();
-    (menu.children[selected] as HTMLElement | undefined)?.focus();
+    (menu.children[selected] as HTMLElement | undefined)?.focus({ preventScroll: true });
     window.addEventListener("resize", place);
     document.addEventListener("scroll", place, true);
   }
@@ -520,6 +519,7 @@ if ("IntersectionObserver" in window) {
   const revealObserver = new IntersectionObserver(entries => {
     entries.forEach(entry => {
       const card = entry.target as HTMLElement;
+      if (card.hidden) { delete card.dataset.revealPending; return; }
       if (!entry.isIntersecting) {
         if (card.dataset.revealing) return;
         card.dataset.revealPending = "true";
@@ -545,6 +545,7 @@ if ("IntersectionObserver" in window) {
 }
 
 let activeFamily = "all";
+let filterFrame = 0;
 function matchesFilter(config: ChartConfig) {
   const family = chartFamily(config);
   return activeFamily === "all" || (family === "line-column" ? "line" : family === "range-column" ? "column" : family === "strip" || family === "progress" ? "bar" : family) === activeFamily;
@@ -561,13 +562,21 @@ const filters = Object.entries({ all: "All", ...familyLabels }).map(([family, la
   pill.addEventListener("click", () => {
     if (family === activeFamily) return;
     activeFamily = family;
-    gallery.classList.toggle("is-filtered", family !== "all");
     for (const filter of filters) filter.pill.setAttribute("aria-pressed", String(filter.family === activeFamily));
-    charts.forEach((chart, i) => { chart.card.hidden = !matchesFilter(configs[i]); });
-    const orderedCharts = family === "bar"
-      ? [...charts.filter((_, i) => chartFamily(configs[i]) === "progress"), ...charts.filter((_, i) => chartFamily(configs[i]) !== "progress")]
-      : charts;
-    gallery.append(...orderedCharts.map(chart => chart.card));
+    // Coalesce filter/layout work into one paint to avoid competing reveal and resize passes.
+    cancelAnimationFrame(filterFrame);
+    filterFrame = requestAnimationFrame(() => {
+      gallery.classList.toggle("is-filtered", activeFamily !== "all");
+      charts.forEach((chart, i) => {
+        delete chart.card.dataset.revealPending;
+        chart.card.getAnimations().forEach(animation => animation.cancel());
+        chart.card.hidden = !matchesFilter(configs[i]);
+      });
+      const orderedCharts = activeFamily === "bar"
+        ? [...charts.filter((_, i) => chartFamily(configs[i]) === "progress"), ...charts.filter((_, i) => chartFamily(configs[i]) !== "progress")]
+        : charts;
+      gallery.replaceChildren(...orderedCharts.map(chart => chart.card));
+    });
   });
   chartTypes.append(pill);
   return { family, pill };
