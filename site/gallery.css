@@ -421,9 +421,11 @@ dialog::backdrop { background: #0009; }
 }
 @media (min-width: 900px) and (min-height: 540px) {
   .preview-content {
-    --preview-square: min(calc((100vw - 3 * var(--preview-spacing)) / 2), calc(100dvh - 2 * var(--preview-spacing)), 760px);
-    grid-template-columns: repeat(2, minmax(0, var(--preview-square)));
-    width: calc(2 * var(--preview-square) + var(--preview-spacing));
+    /* The preview stays square; the controls use 32% of the paired panels. */
+    --preview-square: min(700px, calc(68vw - 2 * var(--preview-spacing)), calc(100dvh - 2 * var(--preview-spacing)));
+    --preview-settings-width: calc(var(--preview-square) * 8 / 17);
+    grid-template-columns: minmax(0, var(--preview-square)) minmax(0, var(--preview-settings-width));
+    width: calc(var(--preview-square) + var(--preview-settings-width) + var(--preview-spacing));
     align-items: stretch;
   }
   .preview-stage, .preview-options { block-size: var(--preview-square); min-block-size: 0; }

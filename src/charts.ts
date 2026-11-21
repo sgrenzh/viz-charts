@@ -637,7 +637,7 @@ export function mountChart(host: HTMLElement, initial: ChartConfig, options: Cha
     });
     displayHeadline(index, mark, settleHeadline);
     const points = isLine() && "series" in config && config.marker !== false ? mark?.points ?? [] : [];
-    const guide = isLine() && pinned && "xAxis" in config && config.xAxis?.show !== false && points.length && mark
+    const guide = isLine() && "xAxis" in config && config.xAxis?.show !== false && points.length && mark
       ? [svgElement("line", { x1: mark.x, x2: mark.x, y1: 12, y2: layout.height - ("xAxis" in config && config.xAxis?.label ? 36 : 20) - (config.type === "line-column" && config.showVolume !== false ? 44 : 0),
         stroke: "var(--viz-muted)", "stroke-width": 1, "stroke-dasharray": "4 4" })]
       : [];
